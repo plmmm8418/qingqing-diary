@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="輕輕日記">
+<meta name="theme-color" content="#fff3ec">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-512.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>輕輕日記</title>
+<style>
+:root{
+  --bg:#fff7f2; --card:#ffffff; --ink:#4a3b36; --soft:#9a8580; --line:#f1e4dd;
+  --peach:#ffb59a; --peach-d:#f28c6a; --mint:#9fe0c8; --mint-d:#4fbf98;
+  --sky:#a9d8ff; --sky-d:#4fa3e8; --sun:#ffd86b; --pink:#ffc8d8;
+  --r:22px; --shadow:0 6px 20px rgba(160,100,80,.10);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;}
+body{min-height:100vh}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+.app{max-width:480px;margin:0 auto;padding:16px 16px calc(96px + env(safe-area-inset-bottom));padding-top:calc(16px + env(safe-area-inset-top))}
+@media(min-width:760px){
+  body{background:linear-gradient(135deg,#ffeee5,#eef9f4)}
+  .app{background:var(--bg);min-height:100vh;box-shadow:0 0 40px rgba(160,100,80,.12)}
+}
+.top{display:flex;justify-content:space-between;align-items:center;margin:4px 2px 14px}
+.hello{font-size:22px;font-weight:800}
+.date{font-size:13px;color:var(--soft);margin-top:2px}
+.streak{background:#fff;border-radius:999px;padding:8px 12px;font-weight:800;box-shadow:var(--shadow);font-size:15px;white-space:nowrap}
+.card{background:var(--card);border-radius:var(--r);padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 10px;font-size:16px;display:flex;justify-content:space-between;align-items:center}
+.card h3 small{font-weight:500;color:var(--soft);font-size:12px}
+.muted{color:var(--soft);font-size:13px}
+
+/* pet */
+.petcard{background:linear-gradient(180deg,#fff0e8 0%,#ffffff 85%);text-align:center;position:relative;overflow:hidden}
+.petcard.rainbow{background:linear-gradient(180deg,#ffe3ec 0%,#fff4d6 30%,#e3f7ee 60%,#ffffff 90%)}
+.stage{position:relative;width:180px;height:170px;margin:6px auto 0}
+.pet{width:180px;height:170px;animation:bob 2.6s ease-in-out infinite;transform-origin:50% 90%}
+.pet.jump{animation:jump .6s ease}
+@keyframes bob{0%,100%{transform:translateY(0) scale(1,1)}50%{transform:translateY(-6px) scale(1.02,.98)}}
+@keyframes jump{0%{transform:translateY(0)}30%{transform:translateY(-28px) scale(.95,1.06)}60%{transform:translateY(0) scale(1.08,.92)}100%{transform:none}}
+.acc{position:absolute;font-size:34px;line-height:1;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.08))}
+.acc.head{left:50%;top:6px;font-size:44px;transform:translateX(-50%) rotate(-8deg)}
+.acc.face{left:50%;top:66px;transform:translateX(-50%);font-size:40px}
+.acc.neck{left:50%;top:112px;transform:translateX(-50%);font-size:30px}
+.acc.hand{right:2px;top:70px;font-size:32px;animation:sway 3s ease-in-out infinite}
+.acc.side{left:4px;top:30px;font-size:26px;animation:flutter 2.2s ease-in-out infinite}
+.acc.aura{left:8px;top:110px;font-size:22px;animation:twinkle 1.8s ease-in-out infinite}
+.acc.aura2{right:14px;top:6px;font-size:20px;animation:twinkle 2.3s ease-in-out infinite}
+@keyframes sway{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(8deg)}}
+@keyframes flutter{0%,100%{transform:translate(0,0)}50%{transform:translate(6px,-8px)}}
+@keyframes twinkle{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.1)}}
+.bubble{display:inline-block;background:#fff;border:2px solid var(--line);border-radius:18px;padding:8px 14px;font-size:14px;margin:2px 10px 8px;max-width:90%;position:relative}
+.bubble:after{content:"";position:absolute;left:50%;bottom:-8px;width:12px;height:12px;background:#fff;border-right:2px solid var(--line);border-bottom:2px solid var(--line);transform:translateX(-50%) rotate(45deg)}
+.away{font-size:15px;padding:30px 0 12px}
+.ringrow{display:flex;align-items:center;gap:12px;justify-content:center;margin-top:8px}
+.dots{display:flex;gap:6px}
+.dots i{width:14px;height:14px;border-radius:50%;background:var(--line);display:block}
+.dots i.on{background:var(--peach)}
+
+/* weight input */
+.wrow{display:flex;align-items:center;gap:10px;justify-content:center}
+.step{width:48px;height:48px;border-radius:50%;background:#fff3ec;font-size:24px;font-weight:800;color:var(--peach-d)}
+.step:active{transform:scale(.92)}
+.wnum{width:120px;text-align:center;font-size:34px;font-weight:800;border:0;border-bottom:3px solid var(--line);background:transparent;padding:4px 0;outline:none}
+.wunit{font-size:15px;color:var(--soft)}
+.btn{display:block;width:100%;padding:13px;border-radius:16px;background:var(--peach-d);color:#fff;font-weight:800;font-size:16px;margin-top:12px}
+.btn:active{transform:scale(.98)}
+.btn.ghost{background:#fff3ec;color:var(--peach-d)}
+.btn.mint{background:var(--mint-d)}
+.btn.small{display:inline-block;width:auto;padding:8px 14px;font-size:14px;margin-top:0}
+.done-line{display:flex;justify-content:space-between;align-items:center;background:#effaf5;border-radius:14px;padding:12px 14px}
+.done-line b{font-size:22px}
+
+/* water */
+.cups{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.cup{aspect-ratio:3/4;border-radius:8px 8px 12px 12px;border:2px solid #cfe8ff;background:#fff;position:relative;overflow:hidden}
+.cup:after{content:"";position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(180deg,#bfe3ff,#7cc2f5);transition:height .35s}
+.cup.on:after{height:78%}
+.cup:active{transform:scale(.9)}
+
+/* habits */
+.habits{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.habit{display:flex;align-items:center;gap:8px;padding:12px;border-radius:16px;background:#faf5f2;text-align:left;font-size:14px;line-height:1.3;border:2px solid transparent;transition:.2s}
+.habit .e{font-size:24px}
+.habit.on{background:#effaf5;border-color:var(--mint)}
+.habit.on .t:after{content:" ✓";color:var(--mint-d);font-weight:800}
+.habit:active{transform:scale(.96)}
+
+/* mood */
+.moods{display:flex;justify-content:space-between}
+.mood{font-size:30px;width:52px;height:52px;border-radius:50%;opacity:.45;transition:.2s}
+.mood.on{opacity:1;background:#fff3ec;transform:scale(1.1)}
+textarea{width:100%;border:2px solid var(--line);border-radius:14px;padding:10px;margin-top:10px;resize:none;background:#fffdfb;outline:none}
+
+/* weight tab */
+.big{display:grid;grid-template-columns:1fr 1fr 1fr;text-align:center;gap:6px}
+.big b{display:block;font-size:24px}
+.big span{font-size:12px;color:var(--soft)}
+.road{position:relative;height:16px;background:var(--line);border-radius:999px;margin:20px 6px 26px}
+.road .fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--peach),var(--peach-d));border-radius:999px;transition:width .6s}
+.road .ms{position:absolute;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:#fff;border:2px solid var(--line);font-size:12px;display:flex;align-items:center;justify-content:center}
+.road .ms.on{border-color:var(--peach-d)}
+.road .me{position:absolute;top:-30px;font-size:22px;transform:translateX(-50%);transition:left .6s}
+.seg{display:flex;background:#faf5f2;border-radius:12px;padding:3px}
+.seg button{padding:5px 10px;border-radius:10px;font-size:12px;color:var(--soft)}
+.seg button.on{background:#fff;color:var(--ink);font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+svg.chart{width:100%;height:auto;display:block}
+.tip{background:#fff8e1;border-radius:14px;padding:10px 12px;font-size:13px;line-height:1.6;margin-top:10px}
+.hist{list-style:none;margin:0;padding:0}
+.hist li{display:flex;justify-content:space-between;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line);font-size:14px}
+.hist li:last-child{border:0}
+.del{color:#c9b3ab;font-size:13px;padding:4px 8px}
+
+/* collection */
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.item{aspect-ratio:1;border-radius:16px;background:#faf5f2;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:28px}
+.item small{font-size:10px;color:var(--soft);margin-top:2px}
+.item.lock{filter:grayscale(1);opacity:.4}
+.post{background:#fffaf0;border:2px dashed #f3d9b1;border-radius:16px;padding:12px 14px;margin-bottom:10px;font-size:14px;line-height:1.6}
+.post .d{font-size:11px;color:var(--soft)}
+
+/* forms */
+label.f{display:block;margin-bottom:12px;font-size:14px;font-weight:700}
+label.f input,label.f select,label.f textarea{display:block;width:100%;margin-top:6px;padding:12px;border-radius:14px;border:2px solid var(--line);background:#fffdfb;font-weight:500;outline:none}
+label.f input:focus,label.f textarea:focus{border-color:var(--peach)}
+.warn{background:#fff0f0;color:#b5543c;border-radius:12px;padding:10px 12px;font-size:13px;margin:-4px 0 12px;line-height:1.5}
+
+/* tab bar */
+.tabs{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:20}
+.tabs .in{max-width:480px;margin:0 auto;display:flex}
+.tabs button{flex:1;padding:9px 0 8px;font-size:11px;color:var(--soft);display:flex;flex-direction:column;align-items:center;gap:2px}
+.tabs button span{font-size:22px;filter:grayscale(1);opacity:.6}
+.tabs button.on{color:var(--peach-d);font-weight:800}
+.tabs button.on span{filter:none;opacity:1}
+
+/* modal & toast */
+.mask{position:fixed;inset:0;background:rgba(74,59,54,.35);display:flex;align-items:center;justify-content:center;z-index:50;padding:24px;animation:fade .2s}
+.modal{background:#fff;border-radius:26px;padding:24px 20px 18px;max-width:360px;width:100%;text-align:center;animation:pop .35s cubic-bezier(.2,1.4,.4,1)}
+.modal .em{font-size:64px;line-height:1.1}
+.modal h2{margin:8px 0 6px;font-size:20px}
+.modal p{margin:0 0 6px;line-height:1.7;font-size:15px}
+@keyframes fade{from{opacity:0}}
+@keyframes pop{from{transform:scale(.7);opacity:0}}
+.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;z-index:60;animation:fade .2s;white-space:nowrap}
+.confetti{position:fixed;top:-40px;font-size:24px;z-index:70;pointer-events:none;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(540deg)}}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<nav class="tabs hide" id="tabs"><div class="in">
+  <button data-tab="today" class="on"><span>🌤️</span>今天</button>
+  <button data-tab="weight"><span>📉</span>體重</button>
+  <button data-tab="collect"><span>🎁</span>收藏</button>
+  <button data-tab="settings"><span>⚙️</span>設定</button>
+</div></nav>
+
+<script>
+/* ========== 資料 ========== */
+const KEY = 'qingqing-diary-v1';
+const HABITS = [
+  {id:'veg',  e:'🥗', t:'每餐半盤蔬菜'},
+  {id:'walk', e:'🚶‍♀️', t:'走路 30 分鐘'},
+  {id:'night',e:'🌙', t:'晚上 8 點後不吃'},
+  {id:'sleep',e:'😴', t:'12 點前睡覺'},
+];
+const WATER_GOAL = 8;
+const OUTING_AT = 4; // 完成幾項，夥伴就出門散步
+const MOODS = ['😫','😕','🙂','😊','🥰'];
+const REWARDS = [ // 每減 1 公斤解鎖一個
+  {kg:1, e:'🌸', n:'小花',   slot:'hand'},
+  {kg:2, e:'🎀', n:'蝴蝶結', slot:'head'},
+  {kg:3, e:'🧣', n:'小圍巾', slot:'neck'},
+  {kg:4, e:'🕶️', n:'墨鏡',   slot:'face'},
+  {kg:5, e:'👒', n:'草帽',   slot:'head'},
+  {kg:6, e:'🎈', n:'氣球',   slot:'hand'},
+  {kg:7, e:'🦋', n:'蝴蝶',   slot:'side'},
+  {kg:8, e:'✨', n:'閃閃',   slot:'aura'},
+  {kg:9, e:'🌈', n:'彩虹',   slot:'bg'},
+  {kg:10,e:'👑', n:'皇冠',   slot:'head'},
+];
+const POSTCARDS = [
+  '我去芹壁的石頭屋晃了一圈，帶回一顆圓圓的小石頭，跟妳一樣可愛。',
+  '北竿的風好大，差點把我吹走！還好今天妳有好好喝水，我也很有力氣。',
+  '我在海邊看到藍眼淚的預告，說今晚會很美，就像今天認真的妳。',
+  '路過老酒工廠，聞到好香的味道……但我忍住了！跟妳學的 😤',
+  '今天走了好多路，我數了一下，大概有一百萬步（騙妳的，但我很努力）。',
+  '我在路邊撿到一片心形葉子，送給今天也沒放棄的妳。',
+  '小提醒：體重會上上下下，就像海浪。看趨勢，不看一天。',
+  '我遇到一隻貓，牠說妳今天的打卡很漂亮。',
+  '今天的夕陽是橘子色的，我幫妳看了，也幫妳許了願。',
+  '偷偷告訴妳：慢慢瘦的人，最不容易復胖。',
+  '我在步道上看到一朵小黃花，它沒有很大，但開得很認真。',
+  '今天在港口看船，風把我的臉吹得圓圓的（本來就圓）。',
+  '我想了一下，妳最厲害的地方不是瘦了多少，是每天都回來。',
+  '帶回一杯想像中的熱茶，給妳暖暖手。',
+  '今天的雲像一顆饅頭。嗯……沒關係，我們看看就好。',
+  '我去爬了小山坡，喘到不行，終於知道妳走路有多棒。',
+  '在沙灘寫了妳的名字，浪來之前我先拍照存起來了。',
+  '今天有點累也沒關係，休息也是計畫的一部分。',
+  '我幫妳跟月亮說了晚安，記得 12 點前睡喔。',
+  '撿到一枚貝殼，裡面好像有海的聲音，說：「妳很棒」。',
+];
+const PET_LINES = {
+  sleepy: ['早安～我還有點睏，陪我喝杯水好嗎？','今天也一起慢慢來 ☁️','先量個體重，我幫妳記著！'],
+  mid:    ['再一點點，我就能出門散步了！','妳做得很好，繼續保持 ✨','喝水水～咕嚕咕嚕 💧'],
+  happy:  ['今天超棒！我好開心 🥰','妳是我見過最有毅力的人！','耶～今天的任務都完成啦！'],
+  tap:    ['嘿嘿，好癢 😆','戳我也不會變瘦啦～（但我很開心）','妳今天看起來很有精神！','要不要起來伸個懶腰？','我們一起加油！💪','別忘了喝水喔～'],
+};
+
+let S = load();
+let tab = 'today';
+let chartRange = 30;
+let petLine = null;
+
+function load(){
+  try{ return JSON.parse(localStorage.getItem(KEY)) || {days:{},postcards:[],unlocked:0}; }
+  catch(e){ return {days:{},postcards:[],unlocked:0}; }
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+
+/* ========== 小工具 ========== */
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2,'0');
+function dkey(d=new Date()){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function parseKey(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m-1,d); }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const r1 = n => Math.round(n*10)/10;
+const fmt = n => (Math.round(n*10)/10).toFixed(1);
+function today(){ const k=dkey(); if(!S.days[k]) S.days[k]={water:0,habits:{}}; return S.days[k]; }
+function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+function dateLabel(k){ const d=parseKey(k); return (d.getMonth()+1)+'/'+d.getDate(); }
+
+/* ========== 計算 ========== */
+function doneCount(day){
+  if(!day) return 0;
+  let n = 0;
+  if(day.w) n++;
+  if((day.water||0) >= WATER_GOAL) n++;
+  HABITS.forEach(h=>{ if(day.habits && day.habits[h.id]) n++; });
+  return n;
+}
+const TOTAL = 2 + HABITS.length;
+function active(day){ return day && (day.w || day.water || day.mood || Object.values(day.habits||{}).some(Boolean)); }
+
+// 連續天數：每 7 天可以有 1 天「請假」不中斷（寬容，不給壓力）
+function streak(){
+  const keys = Object.keys(S.days).filter(k=>active(S.days[k])).sort();
+  if(!keys.length) return {n:0, rest:false};
+  const first = parseKey(keys[0]);
+  let d = new Date(); d.setHours(0,0,0,0);
+  if(!active(S.days[dkey(d)])) d = addDays(d,-1);
+  let n=0, lastSkip=null, k=0, usedRest=false;
+  while(d >= first){
+    if(active(S.days[dkey(d)])) n++;
+    else if(lastSkip===null || k-lastSkip>=7){ lastSkip=k; usedRest=true; }
+    else break;
+    d = addDays(d,-1); k++;
+  }
+  return {n, rest:usedRest};
+}
+
+// 趨勢體重（指數平滑）：把每天的上下起伏抹平，看真正的方向
+function weights(){
+  return Object.keys(S.days).filter(k=>S.days[k].w).sort().map(k=>({k, w:S.days[k].w}));
+}
+function trendSeries(){
+  const ws = weights(); let t=null;
+  return ws.map(p=>{ t = t===null ? p.w : t + 0.2*(p.w - t); return {...p, t}; });
+}
+function stats(){
+  const p = S.profile, ts = trendSeries();
+  const cur = ts.length ? ts[ts.length-1].t : p.start;
+  const last = ts.length ? ts[ts.length-1].w : p.start;
+  const lost = Math.max(0, p.start - cur);
+  const goalLoss = p.start - p.goal;
+  const remain = Math.max(0, cur - p.goal);
+  // 最近 14 天的每週速度
+  let rate = null;
+  if(ts.length >= 3){
+    const lastD = parseKey(ts[ts.length-1].k);
+    const ref = ts.slice().reverse().find(x => (lastD - parseKey(x.k))/864e5 >= 7) || ts[0];
+    const days = (lastD - parseKey(ref.k))/864e5;
+    if(days >= 4) rate = (ref.t - cur) / days * 7;
+  }
+  return {cur, last, lost, goalLoss, remain, rate, ts};
+}
+function checkUnlock(){
+  const {lost} = stats();
+  const kg = Math.min(10, Math.floor(lost + 1e-9));
+  if(kg > (S.unlocked||0)){
+    S.unlocked = kg; save(); render();
+    const r = REWARDS[kg-1];
+    setTimeout(()=>{
+      confetti(kg===10 ? ['👑','🎉','💖','✨'] : [r.e,'🎉','✨']);
+      modal(r.e, kg===10 ? '目標達成！！' : `減掉 ${kg} 公斤！`,
+        kg===10 ? `${esc(S.profile.name)}，妳做到了！<br>${esc(S.profile.pet)}戴上皇冠，正式封妳為女王 👑`
+                : `${esc(S.profile.pet)}得到新禮物：<b>${r.e} ${r.n}</b><br>${kg===5?'已經走完一半了，超級厲害！':'一步一步，好棒！'}`);
+    }, 400);
+  }
+}
+
+/* ========== 夥伴 ========== */
+function petSVG(mood){
+  const eyes = mood==='happy'
+    ? '<path d="M66 88 q8 -10 16 0" stroke="#4a3b36" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M98 88 q8 -10 16 0" stroke="#4a3b36" stroke-width="4" fill="none" stroke-linecap="round"/>'
+    : mood==='sleepy'
+    ? '<path d="M66 88 h16" stroke="#4a3b36" stroke-width="4" stroke-linecap="round"/><path d="M98 88 h16" stroke="#4a3b36" stroke-width="4" stroke-linecap="round"/>'
+    : '<circle cx="74" cy="87" r="6" fill="#4a3b36"/><circle cx="106" cy="87" r="6" fill="#4a3b36"/><circle cx="76" cy="85" r="2" fill="#fff"/><circle cx="108" cy="85" r="2" fill="#fff"/>';
+  const mouth = mood==='happy'
+    ? '<path d="M82 102 q8 12 16 0 z" fill="#e8705a"/>'
+    : '<path d="M84 102 q6 6 12 0" stroke="#4a3b36" stroke-width="3.5" fill="none" stroke-linecap="round"/>';
+  return `<svg class="pet" id="pet" viewBox="0 0 180 170" role="img" aria-label="${esc(S.profile.pet)}">
+    <ellipse cx="90" cy="158" rx="48" ry="7" fill="#f3dfd6"/>
+    <path d="M90 22 C140 22 158 70 156 104 C154 140 126 156 90 156 C54 156 26 140 24 104 C22 70 40 22 90 22 Z" fill="#ffcfb8"/>
+    <path d="M90 22 C140 22 158 70 156 104 C154 140 126 156 90 156" fill="none" stroke="#f7b597" stroke-width="3" opacity=".6"/>
+    <ellipse cx="90" cy="120" rx="40" ry="28" fill="#fff1e8"/>
+    <path d="M84 24 q6 -14 14 -6" stroke="#ffb59a" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <ellipse cx="34" cy="108" rx="10" ry="16" fill="#ffc2a6" transform="rotate(20 34 108)"/>
+    <ellipse cx="146" cy="108" rx="10" ry="16" fill="#ffc2a6" transform="rotate(-20 146 108)"/>
+    ${eyes}
+    <ellipse cx="60" cy="100" rx="9" ry="6" fill="#ff9ea0" opacity=".55"/>
+    <ellipse cx="120" cy="100" rx="9" ry="6" fill="#ff9ea0" opacity=".55"/>
+    ${mouth}
+    <ellipse cx="70" cy="156" rx="12" ry="6" fill="#f7b597"/><ellipse cx="110" cy="156" rx="12" ry="6" fill="#f7b597"/>
+  </svg>`;
+}
+function accessories(){
+  const u = S.unlocked||0, slots = {};
+  REWARDS.forEach(r=>{ if(r.kg<=u) slots[r.slot]=r.e; });
+  let h = '';
+  ['head','face','neck','hand','side'].forEach(s=>{ if(slots[s]) h += `<span class="acc ${s}">${slots[s]}</span>`; });
+  if(slots.aura) h += '<span class="acc aura">✨</span><span class="acc aura2">✨</span>';
+  return {html:h, rainbow:!!slots.bg};
+}
+
+/* ========== 畫面：今天 ========== */
+function renderToday(){
+  const p = S.profile, day = today(), dc = doneCount(day), st = streak();
+  const h = new Date().getHours();
+  const hi = h<11?'早安':h<14?'午安':h<18?'午後好':'晚安';
+  const mood = dc>=TOTAL-1 ? 'happy' : dc>=2 ? 'mid' : 'sleepy';
+  if(!petLine) petLine = pick(PET_LINES[mood].filter(l=>!(day.outing && l.includes('散步'))));
+  const acc = accessories();
+  const lastW = (()=>{ const ws=weights(); return ws.length? ws[ws.length-1].w : p.start; })();
+  const wd = new Date(); const wk='日一二三四五六'[wd.getDay()];
+
+  const left = Math.max(0, OUTING_AT - dc);
+  return `
+  <div class="top">
+    <div><div class="hello">${hi}，${esc(p.name)} 👋</div><div class="date">${wd.getMonth()+1} 月 ${wd.getDate()} 日 星期${wk}</div></div>
+    <div class="streak" title="連續打卡天數">🔥 ${st.n} 天</div>
+  </div>
+
+  <div class="card petcard ${acc.rainbow?'rainbow':''}">
+    <div class="bubble" id="bubble">${esc(petLine)}</div>
+    <div class="stage" data-act="pet">${petSVG(mood==='mid'?'normal':mood)}${acc.html}</div>
+    <div class="ringrow">
+      <div class="dots">${Array.from({length:TOTAL},(_,i)=>`<i class="${i<dc?'on':''}"></i>`).join('')}</div>
+      <b>${dc}/${TOTAL}</b>
+    </div>
+    <div class="muted" style="margin-top:6px">${
+      day.outing ? `${esc(p.pet)}今天已經散步回來，帶了一張明信片給妳 💌`
+      : left>0 ? `再完成 ${left} 項，${esc(p.pet)}就能出門散步、帶明信片回來`
+      : ''}</div>
+  </div>
+
+  <div class="card">
+    <h3>⚖️ 今天體重 <small>早上起床、上完廁所量最準</small></h3>
+    ${day.w ? `
+      <div class="done-line"><span>已記錄 ✓</span><b>${fmt(day.w)} <small class="muted">kg</small></b><button class="btn small ghost" data-act="editw">修改</button></div>
+      <div class="muted" style="margin-top:8px">${trendMsg()}</div>`
+    : `
+      <div class="wrow">
+        <button class="step" data-act="wm">−</button>
+        <input class="wnum" id="wIn" type="number" inputmode="decimal" step="0.1" value="${fmt(lastW)}">
+        <span class="wunit">kg</span>
+        <button class="step" data-act="wp">＋</button>
+      </div>
+      <button class="btn" data-act="savew">記錄體重</button>`}
+  </div>
+
+  <div class="card">
+    <h3>💧 喝水 <small>${day.water||0} / ${WATER_GOAL} 杯（一杯約 250ml）</small></h3>
+    <div class="cups">${Array.from({length:WATER_GOAL},(_,i)=>`<button class="cup ${i<(day.water||0)?'on':''}" data-act="cup" data-i="${i}" aria-label="第${i+1}杯"></button>`).join('')}</div>
+  </div>
+
+  <div class="card">
+    <h3>✨ 小習慣 <small>點一下就打勾</small></h3>
+    <div class="habits">${HABITS.map(hb=>`<button class="habit ${day.habits[hb.id]?'on':''}" data-act="habit" data-id="${hb.id}"><span class="e">${hb.e}</span><span class="t">${hb.t}</span></button>`).join('')}</div>
+  </div>
+
+  <div class="card">
+    <h3>💭 今天心情 <small>可以不寫</small></h3>
+    <div class="moods">${MOODS.map((m,i)=>`<button class="mood ${day.mood===m?'on':''}" data-act="mood" data-m="${m}">${m}</button>`).join('')}</div>
+    <textarea id="note" rows="2" placeholder="想說的話、今天吃了什麼……（只有妳看得到）">${esc(day.note||'')}</textarea>
+  </div>`;
+}
+function trendMsg(){
+  const s = stats();
+  if(s.ts.length < 3) return `再量 ${3-s.ts.length} 天，我就能幫妳算出「趨勢體重」📈`;
+  const diff = S.profile.start - s.cur;
+  return diff > 0 ? `趨勢體重 ${fmt(s.cur)} kg，已經輕了 ${fmt(diff)} kg 🎉`
+                  : `趨勢體重 ${fmt(s.cur)} kg。剛開始會上上下下，很正常，繼續就好 💪`;
+}
+
+/* ========== 畫面：體重 ========== */
+function renderWeight(){
+  const p = S.profile, s = stats();
+  const pct = Math.min(100, s.lost / s.goalLoss * 100);
+  const ms = Array.from({length:Math.floor(s.goalLoss)},(_,i)=>i+1);
+  let predict = '';
+  if(s.rate===null) predict = '量滿一週體重後，我會幫妳預估達標的日子。';
+  else if(s.rate <= 0.05) predict = '最近趨勢比較平，很常見！可以多走一點、晚餐蔬菜多一點，平台期通常 1～2 週就會過去。';
+  else {
+    const weeks = s.remain / s.rate; const d = addDays(new Date(), Math.round(weeks*7));
+    predict = `最近每週約輕 <b>${fmt(s.rate)} kg</b>。照這個速度，大約 <b>${d.getFullYear()} 年 ${d.getMonth()+1} 月 ${d.getDate()} 日</b> 達標 🎯`;
+    if(s.rate > 1.2) predict += '<br>⚠️ 速度有點快喔！太快容易掉肌肉、也容易復胖，記得吃夠蛋白質和蔬菜。';
+  }
+  const hist = weights().reverse().slice(0,60);
+  return `
+  <div class="top"><div class="hello">體重旅程 📉</div></div>
+  <div class="card">
+    <div class="big">
+      <div><b>${fmt(s.lost)}</b><span>已減 (kg)</span></div>
+      <div><b>${fmt(s.cur)}</b><span>趨勢體重</span></div>
+      <div><b>${fmt(s.remain)}</b><span>還差 (kg)</span></div>
+    </div>
+    <div class="road">
+      <div class="fill" style="width:${pct}%"></div>
+      ${ms.map(k=>{const r=REWARDS[k-1]; const on=(S.unlocked||0)>=k; return `<div class="ms ${on?'on':''}" style="left:${k/s.goalLoss*100}%">${on&&r?r.e:k}</div>`;}).join('')}
+      <div class="me" style="left:${pct}%">🐣</div>
+    </div>
+    <div class="muted" style="text-align:center">起點 ${fmt(p.start)} kg → 目標 ${fmt(p.goal)} kg</div>
+  </div>
+
+  <div class="card">
+    <h3>變化曲線 <div class="seg"><button data-act="range" data-r="14" class="${chartRange==14?'on':''}">2週</button><button data-act="range" data-r="30" class="${chartRange==30?'on':''}">1月</button><button data-act="range" data-r="0" class="${chartRange==0?'on':''}">全部</button></div></h3>
+    ${chart(s.ts)}
+    <div class="muted" style="margin-top:6px">● 每天的體重　— 趨勢線（看這條就好）</div>
+    <div class="tip">${predict}</div>
+    <div class="tip" style="background:#eef7ff">💡 體重一天上下 0.5～1 公斤是正常的（水分、鹽分、生理期都會影響）。看趨勢線往下就對了。</div>
+  </div>
+
+  <div class="card">
+    <h3>紀錄 <small>${weights().length} 筆</small></h3>
+    ${hist.length ? `<ul class="hist">${hist.map(x=>`<li><span>${x.k.replace(/-/g,'/')}</span><b>${fmt(x.w)} kg</b><button class="del" data-act="delw" data-k="${x.k}">刪除</button></li>`).join('')}</ul>` : '<div class="muted">還沒有紀錄，到「今天」量第一次吧！</div>'}
+    <button class="btn ghost" data-act="addpast">＋ 補記之前的體重</button>
+  </div>`;
+}
+function chart(ts){
+  if(ts.length < 2) return '<div class="muted" style="padding:30px 0;text-align:center">記錄兩天以上就會出現曲線 ✏️</div>';
+  let pts = ts;
+  if(chartRange){ const from = addDays(new Date(), -chartRange); pts = ts.filter(x=>parseKey(x.k) >= from); if(pts.length<2) pts = ts.slice(-2); }
+  const W=340,H=180,L=34,R=10,T=12,B=24;
+  const t0 = parseKey(pts[0].k), t1 = parseKey(pts[pts.length-1].k);
+  const span = Math.max(1,(t1-t0)/864e5);
+  let vals = pts.flatMap(x=>[x.w,x.t]); let lo=Math.min(...vals), hi=Math.max(...vals);
+  const goal = S.profile.goal; const showGoal = goal >= lo-1.5;
+  if(showGoal) lo = Math.min(lo, goal);
+  lo = Math.floor(lo-0.5); hi = Math.ceil(hi+0.5);
+  const x = k => L + ((parseKey(k)-t0)/864e5)/span*(W-L-R);
+  const y = v => T + (hi-v)/(hi-lo)*(H-T-B);
+  const step = Math.max(1, Math.ceil((hi-lo)/4));
+  let grid=''; for(let v=hi; v>=lo; v-=step){ grid += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="#f1e4dd"/><text x="${L-6}" y="${y(v)+4}" font-size="10" text-anchor="end" fill="#9a8580">${v}</text>`; }
+  const line = pts.map((p,i)=>(i?'L':'M')+x(p.k).toFixed(1)+' '+y(p.t).toFixed(1)).join(' ');
+  const dots = pts.map(p=>`<circle cx="${x(p.k)}" cy="${y(p.w)}" r="3" fill="#ffcfb8"/>`).join('');
+  const g = showGoal ? `<line x1="${L}" x2="${W-R}" y1="${y(goal)}" y2="${y(goal)}" stroke="#4fbf98" stroke-dasharray="5 4"/><text x="${W-R}" y="${y(goal)-4}" font-size="10" text-anchor="end" fill="#4fbf98">目標 ${fmt(goal)}</text>` : '';
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}">${grid}${g}${dots}
+    <path d="${line}" fill="none" stroke="#f28c6a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="${L}" y="${H-6}" font-size="10" fill="#9a8580">${dateLabel(pts[0].k)}</text>
+    <text x="${W-R}" y="${H-6}" font-size="10" text-anchor="end" fill="#9a8580">${dateLabel(pts[pts.length-1].k)}</text></svg>`;
+}
+
+/* ========== 畫面：收藏 ========== */
+function renderCollect(){
+  const u = S.unlocked||0, s = stats();
+  const pcs = (S.postcards||[]).slice().reverse();
+  return `
+  <div class="top"><div class="hello">收藏冊 🎁</div></div>
+  <div class="card">
+    <h3>${esc(S.profile.pet)}的禮物 <small>每減 1 公斤解鎖一個</small></h3>
+    <div class="grid">${REWARDS.map(r=>`<div class="item ${r.kg<=u?'':'lock'}">${r.kg<=u?r.e:'🔒'}<small>${r.kg<=u?r.n:`-${r.kg}kg`}</small></div>`).join('')}</div>
+    ${u<10 ? `<div class="muted" style="margin-top:10px;text-align:center">下一個禮物：再輕 ${fmt(Math.max(0,(u+1)-s.lost))} kg</div>` : ''}
+  </div>
+  <div class="card">
+    <h3>明信片 <small>${pcs.length} 張</small></h3>
+    ${pcs.length ? pcs.map(c=>`<div class="post"><div class="d">${c.d.replace(/-/g,'/')} · ${esc(S.profile.pet)}寄來</div>${esc(c.t)}</div>`).join('')
+      : `<div class="muted">每天完成 ${OUTING_AT} 項，${esc(S.profile.pet)}就會出門散步，帶一張明信片回來給妳 💌</div>`}
+  </div>`;
+}
+
+/* ========== 畫面：設定 ========== */
+function renderSettings(){
+  const p = S.profile;
+  return `
+  <div class="top"><div class="hello">設定 ⚙️</div></div>
+  <div class="card">
+    <h3>基本資料</h3>
+    ${profileFields(p)}
+    <button class="btn" data-act="saveprofile">儲存</button>
+  </div>
+  <div class="card">
+    <h3>💌 打氣留言 <small>會混在明信片裡寄給她</small></h3>
+    <label class="f">一行一句，例如老大想對闆娘說的話
+      <textarea id="cheer" rows="4" placeholder="老婆辛苦了，今天也很美！&#10;瘦不瘦都愛妳，但我陪妳一起走路">${esc((p.cheer||[]).join('\n'))}</textarea>
+    </label>
+    <button class="btn mint" data-act="savecheer">儲存留言</button>
+  </div>
+  <div class="card">
+    <h3>💾 資料備份 <small>資料只存在這支手機</small></h3>
+    <div class="muted" style="margin-bottom:6px">換手機或清除瀏覽器資料前，記得先備份。</div>
+    <button class="btn ghost" data-act="export">下載備份檔</button>
+    <button class="btn ghost" data-act="import">從備份檔還原</button>
+    <input type="file" id="file" accept="application/json,.json" class="hide">
+  </div>
+  <div class="card">
+    <h3>📱 加到主畫面</h3>
+    <div class="muted" style="line-height:1.7">iPhone：用 Safari 打開 → 點下方「分享」⬆️ → 選「加入主畫面」。之後就像 App 一樣，點圖示就能打開。</div>
+  </div>
+  <button class="btn ghost" style="color:#c96b55;margin-bottom:20px" data-act="reset">全部重新開始</button>`;
+}
+function profileFields(p={}){
+  return `
+    <label class="f">妳的名字<input id="pName" value="${esc(p.name||'闆娘')}" maxlength="12"></label>
+    <label class="f">陪伴夥伴的名字<input id="pPet" value="${esc(p.pet||'圓圓')}" maxlength="8"></label>
+    <label class="f">身高（公分）<input id="pH" type="number" inputmode="decimal" value="${p.height||''}" placeholder="例如 160"></label>
+    <label class="f">開始體重（公斤）<input id="pStart" type="number" inputmode="decimal" step="0.1" value="${p.start||''}" placeholder="例如 68.5"></label>
+    <label class="f">目標體重（公斤）<input id="pGoal" type="number" inputmode="decimal" step="0.1" value="${p.goal||''}" placeholder="開始體重減 10"></label>
+    <div id="pWarn"></div>`;
+}
+function readProfile(){
+  const v = id => $('#'+id).value.trim();
+  const p = {...(S.profile||{}), name:v('pName')||'闆娘', pet:v('pPet')||'圓圓',
+    height:parseFloat(v('pH'))||0, start:parseFloat(v('pStart')), goal:parseFloat(v('pGoal'))};
+  if(!(p.start>25 && p.start<300)){ return {err:'請填開始體重（公斤）'}; }
+  if(!(p.goal>20 && p.goal<p.start)){ return {err:'目標體重要比開始體重輕喔'}; }
+  if(p.height>100){
+    const m = p.height/100, bmi = p.goal/(m*m), minW = r1(18.5*m*m);
+    if(bmi < 18.5) return {err:`這個目標 BMI 只有 ${bmi.toFixed(1)}，低於健康範圍。建議目標不要低於 ${fmt(minW)} kg。`};
+  }
+  return {p};
+}
+
+/* ========== 第一次使用 ========== */
+function renderOnboard(){
+  return `
+  <div style="text-align:center;padding:20px 0 6px">
+    <div style="font-size:60px">🐣</div>
+    <h1 style="margin:6px 0 4px;font-size:26px">輕輕日記</h1>
+    <div class="muted">每天 30 秒，輕輕打卡，慢慢變輕</div>
+  </div>
+  <div class="card">
+    ${profileFields({})}
+    <div class="tip">🌱 健康的速度是<b>每週輕 0.5～1 公斤</b>。減 10 公斤大約需要 3～5 個月，慢慢來最不容易復胖。<br>如果有慢性病、正在吃藥或哺乳，開始前先問問醫生喔。</div>
+    <button class="btn" data-act="start">開始旅程 ✨</button>
+  </div>`;
+}
+
+/* ========== 主繪製 ========== */
+function render(){
+  const app = $('#app');
+  if(!S.profile){ app.innerHTML = renderOnboard(); $('#tabs').classList.add('hide'); bindGoalHint(); return; }
+  $('#tabs').classList.remove('hide');
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab));
+  app.innerHTML = tab==='today'?renderToday(): tab==='weight'?renderWeight(): tab==='collect'?renderCollect(): renderSettings();
+  if(tab==='settings') bindGoalHint();
+  const note = $('#note');
+  if(note) note.addEventListener('input', ()=>{ today().note = note.value; save(); });
+}
+function bindGoalHint(){
+  const st = $('#pStart'), g = $('#pGoal');
+  if(st && g) st.addEventListener('input', ()=>{ const v=parseFloat(st.value); if(v>30 && !g.dataset.touched) g.value = fmt(v-10); });
+  if(g) g.addEventListener('input', ()=> g.dataset.touched = 1);
+}
+
+/* ========== 互動 ========== */
+function afterProgress(){
+  save();
+  const day = today();
+  if(!day.outing && doneCount(day) >= OUTING_AT){
+    day.outing = true;
+    const cheer = (S.profile.cheer||[]).filter(Boolean);
+    const seen = new Set((S.postcards||[]).map(c=>c.t));
+    let pool = POSTCARDS.filter(t=>!seen.has(t));
+    if(!pool.length) pool = POSTCARDS;
+    let text = pick(pool), from = S.profile.pet;
+    if(cheer.length && Math.random() < 0.4){ text = '💌 老大託我帶話：「' + pick(cheer) + '」'; }
+    S.postcards = S.postcards||[]; S.postcards.push({d:dkey(), t:text});
+    save();
+    setTimeout(()=>{ confetti(['💌','🌸','✨']); modal('💌', `${esc(from)}散步回來了！`, `帶回一張明信片：<br><br>${esc(text)}`); }, 350);
+  }
+  if(doneCount(day) === TOTAL && !day.perfect){
+    day.perfect = true; save();
+    setTimeout(()=>{ confetti(['🎉','⭐','💖']); toast('今天全部完成！妳太強了 🎉'); }, day.outing?1200:300);
+  }
+  petLine = null;
+  render();
+}
+document.addEventListener('click', e=>{
+  const tb = e.target.closest('[data-tab]');
+  if(tb){ tab = tb.dataset.tab; petLine=null; render(); window.scrollTo(0,0); return; }
+  const el = e.target.closest('[data-act]'); if(!el) return;
+  const act = el.dataset.act, day = S.profile ? today() : null;
+  switch(act){
+    case 'start': {
+      const r = readProfile(); if(r.err){ $('#pWarn').innerHTML = `<div class="warn">${r.err}</div>`; return; }
+      S.profile = {...r.p, startDate:dkey(), cheer:[]};
+      S.days[dkey()] = {water:0, habits:{}, w:r.p.start};
+      save(); tab='today'; render();
+      setTimeout(()=>modal('🐣', `嗨，我是${esc(S.profile.pet)}！`, `從今天開始陪妳一起變輕盈。<br>每天點一點就好，不用勉強。<br>每輕 1 公斤，我就會收到一個禮物喔 🎁`), 200);
+      break; }
+    case 'pet': {
+      petLine = pick(PET_LINES.tap); $('#bubble').textContent = petLine;
+      const pet = $('#pet'); pet.classList.remove('jump'); void pet.offsetWidth; pet.classList.add('jump');
+      break; }
+    case 'wm': case 'wp': {
+      const i = $('#wIn'); i.value = fmt((parseFloat(i.value)||0) + (act==='wp'?0.1:-0.1)); break; }
+    case 'savew': {
+      const v = parseFloat($('#wIn').value);
+      if(!(v>25 && v<300)){ toast('體重好像怪怪的，再確認一下'); return; }
+      day.w = r1(v); afterProgress(); checkUnlock(); toast('記好了！' + (S.profile.pet) + '幫妳收著 ✓'); break; }
+    case 'editw': { delete day.w; day.perfect = false; save(); render(); break; }
+    case 'cup': {
+      const i = +el.dataset.i; day.water = (i+1 === day.water) ? i : i+1;
+      if(day.water === WATER_GOAL) toast('喝滿 8 杯了，水水的 💧');
+      afterProgress(); break; }
+    case 'habit': { day.habits[el.dataset.id] = !day.habits[el.dataset.id]; if(!day.habits[el.dataset.id]) day.perfect=false; afterProgress(); break; }
+    case 'mood': { day.mood = day.mood===el.dataset.m ? null : el.dataset.m; save(); render(); break; }
+    case 'range': { chartRange = +el.dataset.r; render(); break; }
+    case 'delw': {
+      if(confirm(`刪除 ${el.dataset.k} 的體重紀錄？`)){ delete S.days[el.dataset.k].w; save(); render(); } break; }
+    case 'addpast': pastForm(); break;
+    case 'savepast': {
+      const k = $('#pastD').value, v = parseFloat($('#pastW').value);
+      if(!k || !(v>25 && v<300)){ toast('日期和體重都要填喔'); return; }
+      if(k > dkey()){ toast('不能記未來的日子啦'); return; }
+      S.days[k] = S.days[k] || {water:0,habits:{}}; S.days[k].w = r1(v);
+      save(); closeModal(); render(); checkUnlock(); toast('補記好了 ✓'); break; }
+    case 'saveprofile': {
+      const r = readProfile(); if(r.err){ $('#pWarn').innerHTML = `<div class="warn">${r.err}</div>`; return; }
+      S.profile = r.p; save(); render(); toast('已儲存 ✓'); break; }
+    case 'savecheer': {
+      S.profile.cheer = $('#cheer').value.split('\n').map(s=>s.trim()).filter(Boolean); save(); toast(`存好 ${S.profile.cheer.length} 句打氣話 💌`); break; }
+    case 'export': {
+      const blob = new Blob([JSON.stringify(S,null,1)], {type:'application/json'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `輕輕日記備份_${dkey()}.json`; a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 2000); break; }
+    case 'import': { const f = $('#file'); f.onchange = ()=>{
+        const file = f.files[0]; if(!file) return; const rd = new FileReader();
+        rd.onload = ()=>{ try{ const d = JSON.parse(rd.result); if(!d.profile || !d.days) throw 0;
+          if(confirm('用備份檔取代目前的資料？')){ S = d; save(); render(); toast('還原成功 ✓'); } }
+          catch(_){ toast('這個檔案看不懂，確定是備份檔嗎？'); } };
+        rd.readAsText(file); }; f.click(); break; }
+    case 'reset': { if(confirm('確定要清除所有紀錄、重新開始嗎？（無法復原，建議先下載備份）')){ localStorage.removeItem(KEY); S = load(); tab='today'; render(); } break; }
+    case 'close': closeModal(); break;
+  }
+});
+
+/* ========== 彈窗、提示、彩帶 ========== */
+function modal(em, title, html){
+  closeModal();
+  const m = document.createElement('div'); m.className='mask'; m.id='mask';
+  m.innerHTML = `<div class="modal"><div class="em">${em}</div><h2>${title}</h2><p>${html}</p><button class="btn" data-act="close">好～</button></div>`;
+  m.addEventListener('click', e=>{ if(e.target===m) closeModal(); });
+  document.body.appendChild(m);
+}
+function pastForm(){
+  closeModal();
+  const m = document.createElement('div'); m.className='mask'; m.id='mask';
+  m.innerHTML = `<div class="modal" style="text-align:left"><h2 style="text-align:center">補記體重</h2>
+    <label class="f">日期<input id="pastD" type="date" max="${dkey()}" value="${dkey(addDays(new Date(),-1))}"></label>
+    <label class="f">體重（公斤）<input id="pastW" type="number" inputmode="decimal" step="0.1"></label>
+    <button class="btn" data-act="savepast">儲存</button><button class="btn ghost" data-act="close">取消</button></div>`;
+  m.addEventListener('click', e=>{ if(e.target===m) closeModal(); });
+  document.body.appendChild(m);
+}
+function closeModal(){ const m=$('#mask'); if(m) m.remove(); }
+let toastT;
+function toast(t){ const old=$('.toast'); if(old) old.remove(); const d=document.createElement('div'); d.className='toast'; d.textContent=t; document.body.appendChild(d); clearTimeout(toastT); toastT=setTimeout(()=>d.remove(),2200); }
+function confetti(set){
+  for(let i=0;i<26;i++){ const c=document.createElement('div'); c.className='confetti'; c.textContent=pick(set);
+    c.style.left=Math.random()*100+'vw'; c.style.animationDuration=(1.8+Math.random()*1.6)+'s'; c.style.animationDelay=(Math.random()*.4)+'s';
+    c.style.fontSize=(18+Math.random()*16)+'px'; document.body.appendChild(c); setTimeout(()=>c.remove(),4200); }
+}
+
+// 跨過午夜時自動換成新的一天
+let lastKey = dkey();
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && dkey()!==lastKey){ lastKey=dkey(); petLine=null; render(); } });
+render();
+</script>
+</body>
+</html>
