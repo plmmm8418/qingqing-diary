@@ -193,6 +193,21 @@ label.f input:focus,label.f textarea:focus{border-color:var(--peach)}
 .logintip{background:linear-gradient(135deg,#eaf4ff,#fff3ec);border:2px solid #d6e8fb;border-radius:var(--r);padding:16px;margin-bottom:14px;text-align:center;box-shadow:var(--shadow)}
 .logintip .lt-t{font-weight:800;font-size:16px}
 .logintip .later{margin-top:8px;font-size:13px;color:var(--soft);padding:6px 10px}
+.vids{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+.vids .vh{font-weight:800;font-size:14px;margin-bottom:8px}
+.vid{display:flex;gap:10px;align-items:flex-start;padding:8px;border-radius:16px;background:#faf5f2;margin-bottom:8px}
+.vid.on{background:#effaf5}
+.vthumb{position:relative;width:132px;flex:none;border-radius:12px;overflow:hidden;aspect-ratio:16/9;background:#eee}
+.vthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.vthumb span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+.vthumb em{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.65);color:#fff;font-style:normal;font-size:11px;padding:1px 5px;border-radius:6px}
+.vtx{flex:1;min-width:0;font-size:13px;line-height:1.4;display:flex;flex-direction:column;gap:2px;align-items:flex-start}
+.vtx b{font-size:13px}
+.vtx small{color:var(--soft);font-size:11px}
+.vtx .mini{margin-top:4px;height:28px;font-size:12px}
+.vmodal{max-width:560px;padding:12px 12px 14px}
+.vframe{position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#000}
+.vframe iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .hide{display:none!important}
 </style>
 </head>
@@ -327,6 +342,43 @@ const MOVES = {
   fold:    {e:'🦶', n:'坐姿前彎',     how:'坐著把腳伸直，手往腳尖慢慢伸，不用碰到'},
   catcow:  {e:'🐱', n:'貓牛式',       how:'四足跪姿，吸氣抬頭、吐氣拱背'},
 };
+/* ---------- 跟練影片（YouTube，已確認可嵌入播放）---------- */
+// ph：適合第幾階段（0＝第1–2週、1＝第3–4週、2＝第5週後）
+const VIDEOS = {
+  walk: [
+    {id:'GeJcn-2YBW0', t:'20分鐘居家走路運動｜低衝擊、無跳躍', ch:'Mariness Fit', min:20, ph:[0,1]},
+    {id:'2tPzARoEa3M', t:'20分鐘室內健走｜低衝擊居家有氧', ch:'Mariness Fit', min:20, ph:[0,1]},
+    {id:'FIq1DsHdndM', t:'30分鐘低強度全身運動｜膝蓋友好', ch:'Bellysu減肥中', min:32, ph:[1,2]},
+    {id:'TtbrOIUYtGw', t:'30分鐘超慢跑｜初學節拍、含暖身伸展', ch:'一米六健身服利社', min:35, ph:[1,2]},
+    {id:'riXpBZh8Q8I', t:'40分鐘室內健走｜約5000步', ch:'Mariness Fit', min:40, ph:[2]},
+  ],
+  burn: [
+    {id:'KJrm8eVs1pE', t:'10分鐘無跳躍全身燃脂（新手適用）', ch:'游書庭 樂活有氧', min:10, ph:[0]},
+    {id:'_q9TwSAwUxM', t:'15分鐘全身燃脂｜無跳躍、不傷膝', ch:'游書庭 樂活有氧', min:14, ph:[0,1]},
+    {id:'-hS70qmClnI', t:'20分鐘站立式燃脂｜無跳躍、不傷膝', ch:'游書庭 樂活有氧', min:21, ph:[1,2]},
+    {id:'PXnUli_4dxU', t:'30分鐘全程站立有氧｜無跳躍無深蹲', ch:'周六野 Zoey', min:31, ph:[2]},
+  ],
+  stretch: [
+    {id:'vdIugUHKGWg', t:'睡前10分鐘全身伸展｜物理治療師推薦', ch:'啾c物理治療師', min:10, ph:[0,1,2]},
+    {id:'-g9B1jklK3I', t:'十分鐘全身拉筋舒展', ch:'照護線上', min:11, ph:[0,1,2]},
+    {id:'s5Za2RHBUuk', t:'睡前瑜珈｜五個伸展一覺到天亮', ch:'凱蒂瑜伽', min:9, ph:[0,1,2]},
+    {id:'XEP0dpHdvPk', t:'10分鐘坐著伸展｜釋放肩頸壓力', ch:'凱蒂瑜伽', min:10, ph:[0,1,2]},
+  ],
+};
+const VIDEO_KIND = {walk:'🚶‍♀️ 下雨不想出門？在家跟著走', burn:'🔥 燃脂跟練（可取代上面的肌力）', stretch:'🧘‍♀️ 放鬆伸展跟練'};
+function videoFor(kind, day){
+  const p = workoutPlan();
+  const ph = p.week<=2 ? 0 : p.week<=4 ? 1 : 2;
+  const list = VIDEOS[kind].filter(v=>v.ph.includes(ph));
+  const sw = (day.vswap && day.vswap[kind]) || 0;
+  return list[(dayIndex() + sw) % list.length];
+}
+function todayVideos(day){
+  const p = workoutPlan();
+  if(!p.walk) return ['stretch'];
+  return p.moves.length ? ['walk','burn'] : ['walk','stretch'];
+}
+
 function workoutPlan(k=dkey()){
   const start = parseKey(S.profile.startDate || dkey());
   const week = Math.max(1, Math.floor((parseKey(k) - start)/864e5/7) + 1);
@@ -621,6 +673,13 @@ function workoutCard(day){
         <div class="chips">${p.moves.map(id=>`<span>${MOVES[id].e} ${MOVES[id].n}</span>`).join('')}</div></div>
       <button class="mini ${day.trainDone?'on':''}" data-act="traindone">✓</button></div>
       <button class="btn" data-act="train">▶ 跟著圓圓一起做</button>` : `<div class="muted">今天不用做肌力，走完路就完成囉！</div>`}
+    <div class="vids"><div class="vh">🎬 今日跟練影片</div>
+    ${todayVideos(day).map(kind=>{ const v = videoFor(kind, day); const done = day.vdone && day.vdone[kind];
+      return `<div class="vid ${done?'on':''}">
+        <button class="vthumb" data-act="playv" data-k="${kind}" aria-label="播放 ${esc(v.t)}"><img src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="" loading="lazy"><span>▶</span><em>${v.min} 分</em></button>
+        <div class="vtx"><small>${VIDEO_KIND[kind]}</small><b>${esc(v.t)}</b><small>${esc(v.ch)}${done?'・已完成 ✓':''}</small>
+        <button class="mini" data-act="swapv" data-k="${kind}">換一支</button></div></div>`; }).join('')}
+    </div>
   </div>`;
 }
 function trendMsg(){
@@ -935,6 +994,14 @@ document.addEventListener('click', e=>{
     case 'walkdone': { day.walkDone = !day.walkDone; syncWorkout(day); if(!day.habits.walk) day.perfect=false; afterProgress(); break; }
     case 'traindone': { day.trainDone = !day.trainDone; syncWorkout(day); if(!day.habits.walk) day.perfect=false; afterProgress(); break; }
     case 'train': startTrain(); break;
+    case 'playv': playVideo(el.dataset.k); break;
+    case 'swapv': { day.vswap = day.vswap||{}; day.vswap[el.dataset.k] = (day.vswap[el.dataset.k]||0) + 1; save(); render(); break; }
+    case 'vdone': {
+      const k = el.dataset.k; day.vdone = day.vdone||{}; day.vdone[k] = true;
+      if(k==='walk') day.walkDone = true; else day.trainDone = true;
+      syncWorkout(day); closeModal(); afterProgress();
+      setTimeout(()=>{ if(!$('#mask')){ confetti(['💪','✨','🎉']); toast('跟練完成，好厲害！'); } }, 400);
+      break; }
     case 'tpause': T.paused = !T.paused; el.textContent = T.paused ? '▶ 繼續' : '⏸ 暫停'; break;
     case 'tskip': T.left = 0; tick(); break;
     case 'tstop': stopTrain(); break;
@@ -1009,6 +1076,22 @@ function finishTrain(){
   setTimeout(()=>{ confetti(['💪','✨','🎉']); if(!$('#mask')) modal('💪','做完了！', `${esc(S.profile.pet)}看妳流汗的樣子好帥！<br>${T.p.walk && !day.walkDone ? '記得再去走走路，今天的運動就全部完成囉。':'今天的運動完成 ✓'}`); }, 600);
 }
 
+/* ========== 跟練影片播放 ========== */
+function playVideo(kind){
+  const v = videoFor(kind, today());
+  closeModal();
+  const m = document.createElement('div'); m.className='mask'; m.id='mask';
+  m.innerHTML = `<div class="modal vmodal">
+    <div class="vframe"><iframe src="https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&playsinline=1&rel=0" title="${esc(v.t)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
+    <h2 style="font-size:16px;margin:12px 0 2px">${esc(v.t)}</h2>
+    <div class="muted">${esc(v.ch)}・約 ${v.min} 分鐘　<a href="https://www.youtube.com/watch?v=${v.id}" target="_blank" rel="noopener">在 YouTube 開啟</a></div>
+    <div class="muted" style="margin-top:6px">跟不上就放慢、隨時休息，膝蓋或腰不舒服就停下來 🙏</div>
+    <button class="btn mint" data-act="vdone" data-k="${kind}">做完了 ✓</button>
+    <button class="btn ghost" data-act="close">先關掉</button></div>`;
+  m.addEventListener('click', e=>{ if(e.target===m) closeModal(); });
+  document.body.appendChild(m);
+}
+
 /* ========== 行事曆提醒 ========== */
 function makeICS(){
   const on = reminders().filter(r=>r.on);
@@ -1075,7 +1158,7 @@ function confetti(set){
 }
 
 // 自動更新：打開或回到 App 時，偷偷問伺服器有沒有新版，有就換上
-const APP_VERSION = '20261122-4';
+const APP_VERSION = '20261122-5';
 async function checkUpdate(){
   try{
     const r = await fetch(location.pathname + '?check=' + Date.now(), {cache:'no-store'});
