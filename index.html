@@ -153,6 +153,38 @@ label.f input:focus,label.f textarea:focus{border-color:var(--peach)}
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;z-index:60;animation:fade .2s;white-space:nowrap}
 .confetti{position:fixed;top:-40px;font-size:24px;z-index:70;pointer-events:none;animation:fall linear forwards}
 @keyframes fall{to{transform:translateY(110vh) rotate(540deg)}}
+/* nudge */
+.nudge{background:linear-gradient(90deg,#fff4d6,#ffe9e0);border-radius:16px;padding:11px 14px;margin-bottom:14px;font-size:14px;line-height:1.5;box-shadow:var(--shadow)}
+/* meals */
+.meal{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.meal:last-of-type{border-bottom:0}
+.meal .me{font-size:24px;width:30px;text-align:center}
+.meal .mt{flex:1;font-size:14px;line-height:1.45}
+.meal .mt b{display:block;font-size:12px;color:var(--soft);font-weight:700}
+.meal .mt small{color:var(--soft)}
+.meal.eaten .mt{opacity:.55}
+.mini{min-width:38px;height:34px;border-radius:12px;background:#faf5f2;font-size:13px;font-weight:700;color:var(--soft);padding:0 8px}
+.mini.on{background:var(--mint-d);color:#fff}
+/* workout */
+.wk{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:16px;background:#faf5f2;margin-bottom:8px}
+.wk.on{background:#effaf5}
+.wk .e{font-size:26px}
+.wk .tx{flex:1;font-size:14px;line-height:1.45}
+.wk .tx small{color:var(--soft)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.chips span{background:#fff;border-radius:999px;padding:3px 9px;font-size:12px}
+.timer .em{font-size:80px}
+.count{font-size:64px;font-weight:900;color:var(--peach-d);line-height:1;margin:6px 0}
+.count.rest{color:var(--mint-d)}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin:10px 0}
+.bar i{display:block;height:100%;background:var(--peach);transition:width .9s linear}
+.row2{display:flex;gap:8px}.row2 .btn{margin-top:8px}
+/* reminders */
+.rm{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.rm:last-of-type{border-bottom:0}
+.rm span{flex:1}
+.rm input[type=time]{border:2px solid var(--line);border-radius:10px;padding:5px 6px;background:#fffdfb}
+.rm input[type=checkbox]{width:20px;height:20px;accent-color:var(--peach-d)}
 .hide{display:none!important}
 </style>
 </head>
@@ -170,7 +202,7 @@ label.f input:focus,label.f textarea:focus{border-color:var(--peach)}
 const KEY = 'qingqing-diary-v1';
 const HABITS = [
   {id:'veg',  e:'🥗', t:'每餐半盤蔬菜'},
-  {id:'walk', e:'🚶‍♀️', t:'走路 30 分鐘'},
+  {id:'walk', e:'🏃‍♀️', t:'完成今日運動'},
   {id:'night',e:'🌙', t:'晚上 8 點後不吃'},
   {id:'sleep',e:'😴', t:'12 點前睡覺'},
 ];
@@ -217,6 +249,118 @@ const PET_LINES = {
   happy:  ['今天超棒！我好開心 🥰','妳是我見過最有毅力的人！','耶～今天的任務都完成啦！'],
   tap:    ['嘿嘿，好癢 😆','戳我也不會變瘦啦～（但我很開心）','妳今天看起來很有精神！','要不要起來伸個懶腰？','我們一起加油！💪','別忘了喝水喔～'],
 };
+
+/* ---------- 飲食計畫（台灣好買、外食也做得到）---------- */
+const MEALS = [
+  {id:'b', n:'早餐', e:'🌅', list:[
+    ['無糖豆漿＋茶葉蛋 2 顆＋一小盒小番茄',320],
+    ['地瓜一條＋無糖拿鐵＋水煮蛋',330],
+    ['全麥蛋餅（醬少一點）＋無糖豆漿',380],
+    ['無糖優格＋一小把燕麥＋半根香蕉',320],
+    ['全麥吐司夾蛋和生菜＋無糖紅茶',330],
+    ['鮮奶燕麥＋水煮蛋',330],
+    ['御飯糰 1 顆＋無糖豆漿＋茶葉蛋',380]]},
+  {id:'l', n:'午餐', e:'☀️', list:[
+    ['健康餐盒：雞胸肉＋半碗糙米＋三樣青菜',480],
+    ['自助餐：一份魚＋三樣青菜＋半碗飯',500],
+    ['滷味：豆干、蛋、海帶、兩樣青菜＋少量冬粉（醬汁少）',420],
+    ['清湯麵＋燙青菜＋滷蛋',500],
+    ['超商：舒肥雞＋生菜沙拉（醬減半）＋地瓜',450],
+    ['魚片湯＋半碗飯＋燙青菜',450],
+    ['魚麵湯＋燙青菜＋一顆蛋',450]]},
+  {id:'d', n:'晚餐', e:'🌙', list:[
+    ['清蒸魚＋兩樣炒青菜＋小半碗飯',420],
+    ['清湯火鍋：肉片、豆腐、大量青菜，不加飯麵、沾醬用蔥蒜醬油',450],
+    ['去皮雞腿＋豆腐蛋花湯＋燙青菜',400],
+    ['蔬菜蛋捲＋菇菇湯＋半條地瓜',380],
+    ['鮭魚＋烤蔬菜＋半碗糙米',450],
+    ['雞肉蔬菜湯＋涼拌豆腐',380],
+    ['蝦仁炒蛋＋燙地瓜葉＋小半碗飯',420]]},
+  {id:'s', n:'點心', e:'🍎', list:[
+    ['一個拳頭大的水果',80],
+    ['無糖優格一杯',120],
+    ['一小把堅果（約 10 顆杏仁）',90],
+    ['無糖豆漿一杯',120],
+    ['毛豆一小碗',130],
+    ['茶葉蛋一顆',75],
+    ['芭樂半顆',60]]},
+];
+const MEAL_TIPS = [
+  '吃飯順序：先吃菜、再吃肉、最後吃飯，比較不會餓。',
+  '餐盤口訣：一半蔬菜、四分之一肉魚蛋豆、四分之一飯。',
+  '手搖飲改無糖或微糖，一杯全糖奶茶大約等於一碗半的飯。',
+  '湯麵的湯喝兩口就好，鈉少一點，隔天體重比較不會浮。',
+  '想吃炸物的日子，把皮剝掉，就少了一大半熱量。',
+  '肚子餓不一定是餓，有時是渴：先喝一杯水，等 10 分鐘。',
+  '每口咀嚼 20 下，吃慢一點，大腦才來得及說「飽了」。',
+];
+function dayIndex(k=dkey()){ return Math.floor(parseKey(k).getTime()/864e5 + 0.5); }
+function kcalTarget(){
+  const p = S.profile; const w = stats().cur || p.start;
+  const h = p.height || 160, age = p.age || 40;
+  const bmr = 10*w + 6.25*h - 5*age - 161;      // Mifflin-St Jeor（女性）
+  const t = bmr*1.375 - 500;                    // 輕度活動，每天少 500 大卡 ≈ 每週輕 0.5kg
+  return Math.max(1200, Math.round(t/50)*50);
+}
+function mealFor(day, m, i){
+  const sw = (day.swap && day.swap[m.id]) || 0;
+  return m.list[(dayIndex() + i*3 + sw) % m.list.length];
+}
+
+/* ---------- 運動計畫（循序漸進、在家就能做）---------- */
+const MOVES = {
+  squat:   {e:'🪑', n:'椅子深蹲',     how:'站在椅子前，屁股往後坐，輕碰椅子就站起來'},
+  wallpush:{e:'🧱', n:'扶牆伏地挺身', how:'雙手扶牆，身體打直，胸口靠近牆再推回來'},
+  bridge:  {e:'🌉', n:'臀橋',         how:'躺著屈膝，屁股抬高停一秒再放下'},
+  march:   {e:'🥁', n:'原地抬腿踏步', how:'膝蓋抬高、手跟著擺，像在行軍'},
+  lunge:   {e:'🦵', n:'後跨弓箭步',   how:'一腳往後跨、膝蓋往下，左右輪流；可以扶椅子'},
+  plank:   {e:'🧘‍♀️', n:'跪姿棒式',   how:'手肘撐地、膝蓋著地，身體成一直線，記得呼吸'},
+  reach:   {e:'🙆‍♀️', n:'舉手側彎',   how:'雙手舉高，慢慢往左、往右彎'},
+  fold:    {e:'🦶', n:'坐姿前彎',     how:'坐著把腳伸直，手往腳尖慢慢伸，不用碰到'},
+  catcow:  {e:'🐱', n:'貓牛式',       how:'四足跪姿，吸氣抬頭、吐氣拱背'},
+};
+function workoutPlan(k=dkey()){
+  const start = parseKey(S.profile.startDate || dkey());
+  const week = Math.max(1, Math.floor((parseKey(k) - start)/864e5/7) + 1);
+  const ph = week<=2 ? 0 : week<=4 ? 1 : 2;
+  const dow = parseKey(k).getDay();
+  if(dow === 0) return {week, title:'休息日・輕鬆伸展', walk:0, moves:['reach','fold','catcow'], rounds:2, work:40, rest:10};
+  const strength = [2,4,6].includes(dow);
+  return {
+    week, walk:[20,30,40][ph],
+    title: strength ? '走路＋居家肌力' : '走路日',
+    moves: strength ? (ph<2 ? ['squat','wallpush','bridge','march'] : ['squat','lunge','wallpush','bridge','plank']) : [],
+    rounds:[2,3,3][ph], work:[30,40,45][ph], rest:[20,20,15][ph],
+  };
+}
+function syncWorkout(day){
+  const p = workoutPlan();
+  const done = (!p.walk || day.walkDone) && (!p.moves.length || day.trainDone);
+  day.habits.walk = done;
+}
+
+/* ---------- 提醒 ---------- */
+const REMIND_DEFAULT = [
+  {id:'w',     t:'07:30', title:'⚖️ 量體重囉',     body:'起床上完廁所先量，記到輕輕日記'},
+  {id:'water1',t:'10:30', title:'💧 喝水時間',     body:'喝一杯水，圓圓也要咕嚕咕嚕'},
+  {id:'water2',t:'15:00', title:'💧 下午喝水',     body:'下午最容易忘記，來一杯'},
+  {id:'move',  t:'19:30', title:'🏃‍♀️ 今日運動',  body:'打開輕輕日記跟著做，10 分鐘也好'},
+  {id:'night', t:'20:00', title:'🌙 8 點後不吃',   body:'想吃可以喝溫水或無糖茶'},
+  {id:'sleep', t:'23:00', title:'😴 準備睡覺',     body:'12 點前睡，睡飽也會瘦'},
+];
+function reminders(){
+  const saved = S.reminders || {};
+  return REMIND_DEFAULT.map(r=>({...r, t:(saved[r.id]&&saved[r.id].t)||r.t, on: saved[r.id] ? saved[r.id].on : true}));
+}
+function nudge(day){
+  const h = new Date().getHours(), water = day.water||0;
+  if(h >= 23) return '😴 很晚了，快去睡吧！睡飽了也會瘦喔。';
+  if(h >= 19 && !day.habits.walk) return '🏃‍♀️ 今天的運動還沒做，跟著圓圓動 10 分鐘也好！';
+  if(h >= 20) return '🌙 晚上 8 點後不吃東西，想吃可以喝溫水或無糖茶。';
+  if(h >= 15 && water < 4) return `💧 下午了才喝 ${water} 杯，現在來一杯吧！`;
+  if(h < 11 && !day.w) return '☀️ 早安！先量體重再吃早餐，最準喔。';
+  return '';
+}
 
 let S = load();
 let tab = 'today';
@@ -362,6 +506,7 @@ function renderToday(){
     <div><div class="hello">${hi}，${esc(p.name)} 👋</div><div class="date">${wd.getMonth()+1} 月 ${wd.getDate()} 日 星期${wk}</div></div>
     <div class="streak" title="連續打卡天數">🔥 ${st.n} 天</div>
   </div>
+  ${nudge(day) ? `<div class="nudge">${nudge(day)}</div>` : ''}
 
   <div class="card petcard ${acc.rainbow?'rainbow':''}">
     <div class="bubble" id="bubble">${esc(petLine)}</div>
@@ -391,6 +536,9 @@ function renderToday(){
       <button class="btn" data-act="savew">記錄體重</button>`}
   </div>
 
+  ${mealCard(day)}
+  ${workoutCard(day)}
+
   <div class="card">
     <h3>💧 喝水 <small>${day.water||0} / ${WATER_GOAL} 杯（一杯約 250ml）</small></h3>
     <div class="cups">${Array.from({length:WATER_GOAL},(_,i)=>`<button class="cup ${i<(day.water||0)?'on':''}" data-act="cup" data-i="${i}" aria-label="第${i+1}杯"></button>`).join('')}</div>
@@ -405,6 +553,37 @@ function renderToday(){
     <h3>💭 今天心情 <small>可以不寫</small></h3>
     <div class="moods">${MOODS.map((m,i)=>`<button class="mood ${day.mood===m?'on':''}" data-act="mood" data-m="${m}">${m}</button>`).join('')}</div>
     <textarea id="note" rows="2" placeholder="想說的話、今天吃了什麼……（只有妳看得到）">${esc(day.note||'')}</textarea>
+  </div>
+  <button class="btn ghost" data-act="share">📤 回報今天成果給老大</button>`;
+}
+function mealCard(day){
+  const kcal = kcalTarget();
+  const sum = MEALS.reduce((a,m,i)=>a+mealFor(day,m,i)[1],0);
+  return `<div class="card">
+    <h3>🍱 今日菜單 <small>建議一天約 ${kcal.toLocaleString()} 大卡</small></h3>
+    ${MEALS.map((m,i)=>{ const [name,k]=mealFor(day,m,i); const on=day.ate&&day.ate[m.id];
+      return `<div class="meal ${on?'eaten':''}"><span class="me">${m.e}</span>
+        <div class="mt"><b>${m.n}・約 ${k} 大卡</b>${esc(name)}</div>
+        <button class="mini" data-act="swap" data-m="${m.id}" title="換一個">換</button>
+        <button class="mini ${on?'on':''}" data-act="eat" data-m="${m.id}" title="吃了">✓</button></div>`; }).join('')}
+    ${kcal - sum >= 150 ? `<div class="muted" style="margin-top:6px">菜單合計約 ${sum} 大卡，妳還可以多一份水果、一顆蛋或一杯無糖豆漿 👍</div>` : ''}
+    <div class="tip">💡 ${MEAL_TIPS[dayIndex() % MEAL_TIPS.length]}</div>
+  </div>`;
+}
+function workoutCard(day){
+  const p = workoutPlan();
+  const steps = p.rounds * p.moves.length;
+  const mins = Math.round((steps*p.work + (steps-1)*p.rest)/60);
+  return `<div class="card">
+    <h3>🏃‍♀️ 今日運動 <small>第 ${p.week} 週・${p.title}</small></h3>
+    ${p.walk ? `<div class="wk ${day.walkDone?'on':''}"><span class="e">🚶‍♀️</span>
+      <div class="tx">走路或快走 <b>${p.walk} 分鐘</b><br><small>可以拆成 2～3 次，飯後散步也算</small></div>
+      <button class="mini ${day.walkDone?'on':''}" data-act="walkdone">✓</button></div>` : ''}
+    ${p.moves.length ? `<div class="wk ${day.trainDone?'on':''}"><span class="e">${p.walk?'💪':'🧘‍♀️'}</span>
+      <div class="tx">${p.walk?'居家肌力':'放鬆伸展'} <b>${p.rounds} 輪・約 ${mins} 分鐘</b>
+        <div class="chips">${p.moves.map(id=>`<span>${MOVES[id].e} ${MOVES[id].n}</span>`).join('')}</div></div>
+      <button class="mini ${day.trainDone?'on':''}" data-act="traindone">✓</button></div>
+      <button class="btn" data-act="train">▶ 跟著圓圓一起做</button>` : `<div class="muted">今天不用做肌力，走完路就完成囉！</div>`}
   </div>`;
 }
 function trendMsg(){
@@ -519,6 +698,12 @@ function renderSettings(){
     <button class="btn mint" data-act="savecheer">儲存留言</button>
   </div>
   <div class="card">
+    <h3>⏰ 每日提醒 <small>放進 iPhone 行事曆，時間到會跳通知</small></h3>
+    ${reminders().map(r=>`<div class="rm"><input type="checkbox" data-rm="${r.id}" ${r.on?'checked':''}><span>${r.title}</span><input type="time" data-rmt="${r.id}" value="${r.t}"></div>`).join('')}
+    <button class="btn" data-act="ics">📅 加到 iPhone 行事曆</button>
+    <div class="muted" style="margin-top:8px;line-height:1.6">用 Safari 開這個網頁再按，會跳出「加入行事曆」，選「全部加入」就好。之後想改時間，先到行事曆刪掉舊的提醒，再加一次新的。</div>
+  </div>
+  <div class="card">
     <h3>💾 資料備份 <small>資料只存在這支手機</small></h3>
     <div class="muted" style="margin-bottom:6px">換手機或清除瀏覽器資料前，記得先備份。</div>
     <button class="btn ghost" data-act="export">下載備份檔</button>
@@ -536,6 +721,7 @@ function profileFields(p={}){
     <label class="f">妳的名字<input id="pName" value="${esc(p.name||'闆娘')}" maxlength="12"></label>
     <label class="f">陪伴夥伴的名字<input id="pPet" value="${esc(p.pet||'圓圓')}" maxlength="8"></label>
     <label class="f">身高（公分）<input id="pH" type="number" inputmode="decimal" value="${p.height||''}" placeholder="例如 160"></label>
+    <label class="f">年齡（用來算每天吃多少）<input id="pAge" type="number" inputmode="numeric" value="${p.age||''}" placeholder="例如 40"></label>
     <label class="f">開始體重（公斤）<input id="pStart" type="number" inputmode="decimal" step="0.1" value="${p.start||''}" placeholder="例如 68.5"></label>
     <label class="f">目標體重（公斤）<input id="pGoal" type="number" inputmode="decimal" step="0.1" value="${p.goal||''}" placeholder="開始體重減 10"></label>
     <div id="pWarn"></div>`;
@@ -543,7 +729,7 @@ function profileFields(p={}){
 function readProfile(){
   const v = id => $('#'+id).value.trim();
   const p = {...(S.profile||{}), name:v('pName')||'闆娘', pet:v('pPet')||'圓圓',
-    height:parseFloat(v('pH'))||0, start:parseFloat(v('pStart')), goal:parseFloat(v('pGoal'))};
+    height:parseFloat(v('pH'))||0, age:parseInt(v('pAge'))||0, start:parseFloat(v('pStart')), goal:parseFloat(v('pGoal'))};
   if(!(p.start>25 && p.start<300)){ return {err:'請填開始體重（公斤）'}; }
   if(!(p.goal>20 && p.goal<p.start)){ return {err:'目標體重要比開始體重輕喔'}; }
   if(p.height>100){
@@ -664,9 +850,118 @@ document.addEventListener('click', e=>{
           catch(_){ toast('這個檔案看不懂，確定是備份檔嗎？'); } };
         rd.readAsText(file); }; f.click(); break; }
     case 'reset': { if(confirm('確定要清除所有紀錄、重新開始嗎？（無法復原，建議先下載備份）')){ localStorage.removeItem(KEY); S = load(); tab='today'; render(); } break; }
+    case 'swap': { day.swap = day.swap||{}; day.swap[el.dataset.m] = (day.swap[el.dataset.m]||0) + 1; save(); render(); break; }
+    case 'eat': { day.ate = day.ate||{}; day.ate[el.dataset.m] = !day.ate[el.dataset.m]; save(); render(); break; }
+    case 'walkdone': { day.walkDone = !day.walkDone; syncWorkout(day); if(!day.habits.walk) day.perfect=false; afterProgress(); break; }
+    case 'traindone': { day.trainDone = !day.trainDone; syncWorkout(day); if(!day.habits.walk) day.perfect=false; afterProgress(); break; }
+    case 'train': startTrain(); break;
+    case 'tpause': T.paused = !T.paused; el.textContent = T.paused ? '▶ 繼續' : '⏸ 暫停'; break;
+    case 'tskip': T.left = 0; tick(); break;
+    case 'tstop': stopTrain(); break;
+    case 'ics': makeICS(); break;
+    case 'share': shareToday(); break;
     case 'close': closeModal(); break;
   }
 });
+document.addEventListener('change', e=>{
+  const id = e.target.dataset.rm || e.target.dataset.rmt; if(!id) return;
+  S.reminders = S.reminders || {};
+  const cur = reminders().find(r=>r.id===id);
+  S.reminders[id] = {t: e.target.dataset.rmt ? e.target.value : cur.t, on: e.target.dataset.rm ? e.target.checked : cur.on};
+  save();
+});
+
+/* ========== 跟練計時 ========== */
+let T = null;
+function beep(freq=880, ms=160){
+  try{ T.ac = T.ac || new (window.AudioContext||window.webkitAudioContext)();
+    const o=T.ac.createOscillator(), g=T.ac.createGain(); o.frequency.value=freq; o.connect(g); g.connect(T.ac.destination);
+    g.gain.setValueAtTime(.2,T.ac.currentTime); g.gain.exponentialRampToValueAtTime(.001,T.ac.currentTime+ms/1000); o.start(); o.stop(T.ac.currentTime+ms/1000);
+  }catch(_){}
+  if(navigator.vibrate) navigator.vibrate(120);
+}
+function startTrain(){
+  const p = workoutPlan(), seq = [];
+  for(let r=1;r<=p.rounds;r++) p.moves.forEach((id,i)=>{
+    seq.push({type:'work', id, r, sec:p.work});
+    const last = r===p.rounds && i===p.moves.length-1;
+    if(!last) seq.push({type:'rest', id:p.moves[(i+1)%p.moves.length], r, sec:p.rest});
+  });
+  T = {p, seq, i:-1, left:0, paused:false, ac:T&&T.ac};
+  closeModal();
+  const m = document.createElement('div'); m.className='mask'; m.id='mask';
+  m.innerHTML = `<div class="modal timer" id="tbox"></div>`;
+  document.body.appendChild(m);
+  next(); T.iv = setInterval(()=>{ if(!T.paused){ T.left--; tick(); } }, 1000);
+}
+function next(){
+  T.i++;
+  if(T.i >= T.seq.length) return finishTrain();
+  const s = T.seq[T.i]; T.left = s.sec; T.total = s.sec;
+  beep(s.type==='work'?880:520, 220);
+  drawTimer();
+}
+function tick(){ if(!T) return; if(T.left <= 0) return next(); if(T.left <= 3) beep(660,90); drawTimer(); }
+function drawTimer(){
+  const s = T.seq[T.i], mv = MOVES[s.id], box = $('#tbox'); if(!box) return;
+  const rest = s.type==='rest';
+  box.innerHTML = `
+    <div class="muted">第 ${s.r} / ${T.p.rounds} 輪　·　${T.i+1} / ${T.seq.length}</div>
+    <div class="em">${rest?'😮‍💨':mv.e}</div>
+    <h2>${rest?'休息一下，下一個：'+mv.n:mv.n}</h2>
+    <p class="muted">${rest?'喝口水、深呼吸':esc(mv.how)}</p>
+    <div class="count ${rest?'rest':''}">${T.left}</div>
+    <div class="bar"><i style="width:${(1-T.left/T.total)*100}%"></i></div>
+    <div class="muted">${rest?'':pick(['做得好！','慢慢來，動作做對比較重要','圓圓陪妳一起 💪','呼吸不要停喔'])}</div>
+    <div class="row2"><button class="btn ghost" data-act="tpause">${T.paused?'▶ 繼續':'⏸ 暫停'}</button><button class="btn ghost" data-act="tskip">跳過 ⏭</button></div>
+    <button class="btn ghost" style="background:none" data-act="tstop">先結束</button>`;
+}
+function stopTrain(){ if(T){ clearInterval(T.iv); } closeModal(); }
+function finishTrain(){
+  clearInterval(T.iv); closeModal();
+  const day = today(); day.trainDone = true; syncWorkout(day);
+  beep(1046,300);
+  afterProgress();
+  setTimeout(()=>{ confetti(['💪','✨','🎉']); if(!$('#mask')) modal('💪','做完了！', `${esc(S.profile.pet)}看妳流汗的樣子好帥！<br>${T.p.walk && !day.walkDone ? '記得再去走走路，今天的運動就全部完成囉。':'今天的運動完成 ✓'}`); }, 600);
+}
+
+/* ========== 行事曆提醒 ========== */
+function makeICS(){
+  const on = reminders().filter(r=>r.on);
+  if(!on.length){ toast('先勾選至少一個提醒'); return; }
+  const d = new Date(), ymd = d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate());
+  const stamp = d.toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'');
+  const url = location.href.split('#')[0].split('?')[0];
+  const ev = on.map(r=>{ const [h,mi]=r.t.split(':'); return [
+    'BEGIN:VEVENT', `UID:qingqing-${r.id}-${ymd}@qingqing-diary`, `DTSTAMP:${stamp}`,
+    `DTSTART:${ymd}T${h}${mi}00`, 'DURATION:PT5M', 'RRULE:FREQ=DAILY',
+    `SUMMARY:${r.title}`, `DESCRIPTION:${r.body}\\n${url}`, `URL:${url}`,
+    'BEGIN:VALARM','ACTION:DISPLAY','TRIGGER:PT0M',`DESCRIPTION:${r.title}`,'END:VALARM','END:VEVENT'].join('\r\n'); });
+  const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//qingqing-diary//ZH-TW','CALSCALE:GREGORIAN', ...ev, 'END:VCALENDAR'].join('\r\n');
+  const blob = new Blob([ics], {type:'text/calendar;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '輕輕日記提醒.ics';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+  toast(`已產生 ${on.length} 個每日提醒 📅`);
+}
+
+/* ========== 回報給老大 ========== */
+async function shareToday(){
+  const day = today(), s = stats(), st = streak();
+  const p = workoutPlan();
+  const text = `${S.profile.name}的輕輕日記 ${dkey().replace(/-/g,'/')}\n`+
+    `✅ 今天完成 ${doneCount(day)}/${TOTAL} 項\n`+
+    (day.w ? `⚖️ 體重 ${fmt(day.w)} kg（趨勢已輕 ${fmt(s.lost)} kg）\n` : '⚖️ 今天還沒量體重\n')+
+    `💧 喝水 ${day.water||0}/${WATER_GOAL} 杯\n`+
+    `🏃‍♀️ 運動：${day.habits.walk ? '完成 ✓' : '還沒完成'}（${p.title}）\n`+
+    `🔥 連續 ${st.n} 天\n`+
+    (day.mood ? `心情 ${day.mood}\n` : '')+
+    `老大快來誇我 🥰`;
+  try{
+    if(navigator.share){ await navigator.share({text}); return; }
+    await navigator.clipboard.writeText(text); toast('已複製，貼到 LINE 給老大吧 📋');
+  }catch(e){ if(e && e.name==='AbortError') return; toast('分享失敗，再試一次'); }
+}
 
 /* ========== 彈窗、提示、彩帶 ========== */
 function modal(em, title, html){
