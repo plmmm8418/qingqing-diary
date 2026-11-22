@@ -752,7 +752,8 @@ function renderSettings(){
     <h3>📱 加到主畫面</h3>
     <div class="muted" style="line-height:1.7">iPhone：用 Safari 打開 → 點下方「分享」⬆️ → 選「加入主畫面」。之後就像 App 一樣，點圖示就能打開。</div>
   </div>
-  <button class="btn ghost" style="color:#c96b55;margin-bottom:20px" data-act="reset">全部重新開始</button>`;
+  <button class="btn ghost" style="color:#c96b55;margin-bottom:8px" data-act="reset">全部重新開始</button>
+  <div class="muted" style="text-align:center;margin-bottom:20px">版本 ${APP_VERSION}</div>`;
 }
 function profileFields(p={}){
   return `
@@ -1072,6 +1073,21 @@ function confetti(set){
     c.style.left=Math.random()*100+'vw'; c.style.animationDuration=(1.8+Math.random()*1.6)+'s'; c.style.animationDelay=(Math.random()*.4)+'s';
     c.style.fontSize=(18+Math.random()*16)+'px'; document.body.appendChild(c); setTimeout(()=>c.remove(),4200); }
 }
+
+// 自動更新：打開或回到 App 時，偷偷問伺服器有沒有新版，有就換上
+const APP_VERSION = '20261122-4';
+async function checkUpdate(){
+  try{
+    const r = await fetch(location.pathname + '?check=' + Date.now(), {cache:'no-store'});
+    const m = (await r.text()).match(/APP_VERSION = '([^']+)'/);
+    if(m && m[1] !== APP_VERSION && sessionStorage.getItem('qq-upd') !== m[1]){
+      sessionStorage.setItem('qq-upd', m[1]);   // 避免一直重新整理
+      location.replace(location.pathname + '?v=' + m[1]);
+    }
+  }catch(_){}
+}
+checkUpdate();
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) checkUpdate(); });
 
 // 跨過午夜時自動換成新的一天
 let lastKey = dkey();
