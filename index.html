@@ -185,6 +185,11 @@ label.f input:focus,label.f textarea:focus{border-color:var(--peach)}
 .rm span{flex:1}
 .rm input[type=time]{border:2px solid var(--line);border-radius:10px;padding:5px 6px;background:#fffdfb}
 .rm input[type=checkbox]{width:20px;height:20px;accent-color:var(--peach-d)}
+.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px;border-radius:16px;background:#fff;border:2px solid #e3dcd8;font-weight:700;font-size:15px}
+.gbtn:active{transform:scale(.98)}
+.gbtn[disabled]{opacity:.5}
+.acct{display:flex;align-items:center;gap:12px}
+.acct img,.acct span{width:44px;height:44px;border-radius:50%;background:#faf5f2;display:flex;align-items:center;justify-content:center;font-size:22px}
 .hide{display:none!important}
 </style>
 </head>
@@ -371,7 +376,34 @@ function load(){
   try{ return JSON.parse(localStorage.getItem(KEY)) || {days:{},postcards:[],unlocked:0}; }
   catch(e){ return {days:{},postcards:[],unlocked:0}; }
 }
-function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+function save(){ S.updatedAt = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); window.dispatchEvent(new Event('qq-saved')); }
+// 兩邊的資料合併：以比較新的為主，另一邊多出來的日子、明信片也保留
+function mergeData(a, b){
+  if(!a || !a.profile) return b; if(!b || !b.profile) return a;
+  const [n, o] = (a.updatedAt||0) >= (b.updatedAt||0) ? [a, b] : [b, a];
+  const m = JSON.parse(JSON.stringify(n));
+  m.days = m.days || {};
+  for(const k in (o.days||{})) if(!m.days[k]) m.days[k] = o.days[k];
+  m.postcards = m.postcards || [];
+  const seen = new Set(m.postcards.map(c=>c.d+c.t));
+  (o.postcards||[]).forEach(c=>{ if(!seen.has(c.d+c.t)) m.postcards.push(c); });
+  m.postcards.sort((x,y)=> x.d < y.d ? -1 : x.d > y.d ? 1 : 0);
+  m.unlocked = Math.max(n.unlocked||0, o.unlocked||0);
+  m.updatedAt = Math.max(n.updatedAt||0, o.updatedAt||0);
+  return m;
+}
+// 給雲端模組用的小窗口
+window.QQ = {
+  get: ()=>S,
+  merge: mergeData,
+  replace(d){ S = d; localStorage.setItem(KEY, JSON.stringify(S)); petLine = null; render(); },
+  refresh(){ // 只更新雲端那一塊，不打斷正在填的表單
+    const g = $('#gArea'), c = $('#cloudArea');
+    if(g) g.innerHTML = googleBtn('用 Google 登入，取回我的紀錄');
+    if(c) c.innerHTML = cloudCard();
+    drawCloudDot();
+  },
+};
 
 /* ========== 小工具 ========== */
 const $ = s => document.querySelector(s);
@@ -504,7 +536,7 @@ function renderToday(){
   return `
   <div class="top">
     <div><div class="hello">${hi}，${esc(p.name)} 👋</div><div class="date">${wd.getMonth()+1} 月 ${wd.getDate()} 日 星期${wk}</div></div>
-    <div class="streak" title="連續打卡天數">🔥 ${st.n} 天</div>
+    <div style="text-align:right"><div class="streak" title="連續打卡天數">🔥 ${st.n} 天</div><div id="cloudDot" class="muted" style="font-size:11px;margin-top:4px" data-tab="settings"></div></div>
   </div>
   ${nudge(day) ? `<div class="nudge">${nudge(day)}</div>` : ''}
 
@@ -685,6 +717,7 @@ function renderSettings(){
   const p = S.profile;
   return `
   <div class="top"><div class="hello">設定 ⚙️</div></div>
+  <div id="cloudArea">${cloudCard()}</div>
   <div class="card">
     <h3>基本資料</h3>
     ${profileFields(p)}
@@ -704,7 +737,7 @@ function renderSettings(){
     <div class="muted" style="margin-top:8px;line-height:1.6">用 Safari 開這個網頁再按，會跳出「加入行事曆」，選「全部加入」就好。之後想改時間，先到行事曆刪掉舊的提醒，再加一次新的。</div>
   </div>
   <div class="card">
-    <h3>💾 資料備份 <small>資料只存在這支手機</small></h3>
+    <h3>💾 資料備份 <small>${window.Cloud&&Cloud.user?'已有雲端同步，這是額外保險':'沒登入時，資料只存在這支手機'}</small></h3>
     <div class="muted" style="margin-bottom:6px">換手機或清除瀏覽器資料前，記得先備份。</div>
     <button class="btn ghost" data-act="export">下載備份檔</button>
     <button class="btn ghost" data-act="import">從備份檔還原</button>
@@ -751,7 +784,37 @@ function renderOnboard(){
     ${profileFields({})}
     <div class="tip">🌱 健康的速度是<b>每週輕 0.5～1 公斤</b>。減 10 公斤大約需要 3～5 個月，慢慢來最不容易復胖。<br>如果有慢性病、正在吃藥或哺乳，開始前先問問醫生喔。</div>
     <button class="btn" data-act="start">開始旅程 ✨</button>
+  </div>
+  <div class="card" style="text-align:center">
+    <div class="muted" style="margin-bottom:8px">換新手機、或在別的裝置用過了？</div>
+    <div id="gArea">${googleBtn('用 Google 登入，取回我的紀錄')}</div>
   </div>`;
+}
+function googleBtn(label){
+  if(window.Cloud && Cloud.user) return `<div class="muted">已登入 ${esc(Cloud.user.email)}，${Cloud.busy?'正在取回紀錄…':'雲端沒有找到紀錄，先填上面開始吧'}</div>`;
+  return `<button class="gbtn" data-act="login" ${window.Cloud?'':'disabled'}>
+    <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+    ${window.Cloud ? label : '雲端功能載入中…'}</button>`;
+}
+function cloudCard(){
+  const C = window.Cloud;
+  if(!C) return `<div class="card"><h3>☁️ 雲端同步</h3><div class="muted">雲端功能還沒載入（可能沒有網路），紀錄先存在手機裡，連上網再回來看看。</div></div>`;
+  if(!C.user) return `<div class="card"><h3>☁️ 雲端同步 <small>建議開啟</small></h3>
+    <div class="muted" style="line-height:1.7;margin-bottom:10px">用妳自己的 Google 帳號登入後，紀錄會自動存到雲端：換手機、刪掉 App 都不會不見，手機和電腦也能看同一本日記。只有妳自己看得到。</div>
+    ${googleBtn('用 Google 登入')}
+    ${C.error ? `<div class="warn" style="margin-top:10px">${esc(C.error)}</div>` : ''}</div>`;
+  const t = C.lastSync ? `${pad(C.lastSync.getHours())}:${pad(C.lastSync.getMinutes())}` : '';
+  return `<div class="card"><h3>☁️ 雲端同步 <small>${C.busy?'同步中…':t?'上次同步 '+t:''}</small></h3>
+    <div class="acct">${C.user.photoURL?`<img src="${esc(C.user.photoURL)}" alt="" referrerpolicy="no-referrer">`:'<span>👤</span>'}
+      <div><b>${esc(C.user.displayName||'')}</b><div class="muted">${esc(C.user.email||'')}</div></div></div>
+    <div class="muted" style="margin-top:8px">✓ 每次打卡都會自動存到雲端</div>
+    ${C.error ? `<div class="warn" style="margin-top:10px">${esc(C.error)}</div>` : ''}
+    <div class="row2"><button class="btn ghost" data-act="syncnow">立即同步</button><button class="btn ghost" data-act="logout">登出</button></div></div>`;
+}
+function drawCloudDot(){
+  const el = $('#cloudDot'); if(!el) return;
+  const C = window.Cloud;
+  el.textContent = !C || !C.user ? '' : C.error ? '⚠️' : C.busy ? '☁️…' : '☁️✓';
 }
 
 /* ========== 主繪製 ========== */
@@ -762,6 +825,7 @@ function render(){
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab));
   app.innerHTML = tab==='today'?renderToday(): tab==='weight'?renderWeight(): tab==='collect'?renderCollect(): renderSettings();
   if(tab==='settings') bindGoalHint();
+  drawCloudDot();
   const note = $('#note');
   if(note) note.addEventListener('input', ()=>{ today().note = note.value; save(); });
 }
@@ -849,7 +913,7 @@ document.addEventListener('click', e=>{
           if(confirm('用備份檔取代目前的資料？')){ S = d; save(); render(); toast('還原成功 ✓'); } }
           catch(_){ toast('這個檔案看不懂，確定是備份檔嗎？'); } };
         rd.readAsText(file); }; f.click(); break; }
-    case 'reset': { if(confirm('確定要清除所有紀錄、重新開始嗎？（無法復原，建議先下載備份）')){ localStorage.removeItem(KEY); S = load(); tab='today'; render(); } break; }
+    case 'reset': { if(confirm('確定要清除所有紀錄、重新開始嗎？（無法復原，建議先下載備份）')){ localStorage.removeItem(KEY); S = load(); tab='today'; render(); if(window.Cloud && Cloud.user) Cloud.wipe(); } break; }
     case 'swap': { day.swap = day.swap||{}; day.swap[el.dataset.m] = (day.swap[el.dataset.m]||0) + 1; save(); render(); break; }
     case 'eat': { day.ate = day.ate||{}; day.ate[el.dataset.m] = !day.ate[el.dataset.m]; save(); render(); break; }
     case 'walkdone': { day.walkDone = !day.walkDone; syncWorkout(day); if(!day.habits.walk) day.perfect=false; afterProgress(); break; }
@@ -860,6 +924,9 @@ document.addEventListener('click', e=>{
     case 'tstop': stopTrain(); break;
     case 'ics': makeICS(); break;
     case 'share': shareToday(); break;
+    case 'login': { if(window.Cloud) Cloud.login(); break; }
+    case 'logout': { if(confirm('登出後，這支手機上的紀錄還會留著，只是不再同步到雲端。確定登出？')) Cloud.logout(); break; }
+    case 'syncnow': { Cloud.sync(); break; }
     case 'close': closeModal(); break;
   }
 });
@@ -992,8 +1059,99 @@ function confetti(set){
 
 // 跨過午夜時自動換成新的一天
 let lastKey = dkey();
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && dkey()!==lastKey){ lastKey=dkey(); petLine=null; render(); } });
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden) return;
+  if(dkey()!==lastKey){ lastKey=dkey(); petLine=null; render(); }
+  if(window.Cloud && Cloud.user) Cloud.sync();
+});
 render();
+</script>
+
+<script type="module">
+/* ========== 雲端：Google 登入＋同步（Firebase）========== */
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut }
+  from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
+
+// 這組是 Firebase 網頁設定（本來就是公開的，安全靠資料庫規則把關）
+const app = initializeApp({
+  apiKey: "AIzaSyC4nP_qg0UzGAbPbAegTXMLA7zd3aPILxs",
+  authDomain: "qingqing-diary.firebaseapp.com",
+  projectId: "qingqing-diary",
+  storageBucket: "qingqing-diary.firebasestorage.app",
+  messagingSenderId: "444139585010",
+  appId: "1:444139585010:web:974bbdf80968f979a2bf6b",
+});
+const auth = getAuth(app);
+auth.languageCode = 'zh-TW';
+const db = getFirestore(app);
+const provider = new GoogleAuthProvider();
+provider.setCustomParameters({ prompt: 'select_account' });
+
+const MSG = {
+  'auth/network-request-failed': '網路好像斷了，連上網再試一次',
+  'auth/unauthorized-domain': '這個網址還沒被允許登入，請老大到 Firebase 加入網域',
+  'permission-denied': '雲端拒絕存取，請重新登入看看',
+};
+const errText = e => MSG[e && e.code] || ('登入／同步出了點問題：' + ((e && (e.code || e.message)) || '未知錯誤'));
+
+let pushTimer = null;
+const Cloud = {
+  user: null, busy: false, lastSync: null, error: '',
+  async login(){
+    Cloud.error = '';
+    try { await signInWithPopup(auth, provider); }
+    catch(e){
+      if(e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+      if(e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment'){
+        return signInWithRedirect(auth, provider);
+      }
+      Cloud.error = errText(e); QQ.refresh();
+    }
+  },
+  async wipe(){ try{ await setDoc(Cloud.ref(), { data: '{}', updatedAt: Date.now(), email: Cloud.user.email || '' }); }catch(e){ Cloud.error = errText(e); } },
+  async logout(){ await signOut(auth); Cloud.lastSync = null; },
+  ref(){ return doc(db, 'users', Cloud.user.uid); },
+  async sync(){
+    if(!Cloud.user || Cloud.busy) return;
+    Cloud.busy = true; Cloud.error = ''; QQ.refresh();
+    try{
+      const snap = await getDoc(Cloud.ref());
+      if(snap.exists() && snap.data().data){
+        const remote = JSON.parse(snap.data().data);
+        const merged = QQ.merge(QQ.get(), remote);
+        if(merged !== QQ.get()) QQ.replace(merged);
+      }
+      await Cloud.push(true);
+    }catch(e){ Cloud.error = errText(e); }
+    Cloud.busy = false; QQ.refresh();
+  },
+  async push(inside){
+    const d = QQ.get();
+    if(!Cloud.user || !d.profile) return;
+    try{
+      await setDoc(Cloud.ref(), { data: JSON.stringify(d), updatedAt: d.updatedAt || Date.now(), email: Cloud.user.email || '' });
+      Cloud.lastSync = new Date(); Cloud.error = '';
+    }catch(e){ Cloud.error = errText(e); if(inside) throw e; }
+    if(!inside) QQ.refresh();
+  },
+};
+window.Cloud = Cloud;
+
+// 每次存檔後 1.5 秒自動上傳（連續點很多下只傳一次）
+window.addEventListener('qq-saved', ()=>{
+  if(!Cloud.user) return;
+  clearTimeout(pushTimer); pushTimer = setTimeout(()=>Cloud.push(), 1500);
+});
+
+getRedirectResult(auth).catch(e=>{ Cloud.error = errText(e); QQ.refresh(); });
+onAuthStateChanged(auth, user=>{
+  Cloud.user = user;
+  QQ.refresh();
+  if(user) Cloud.sync();
+});
+QQ.refresh();
 </script>
 </body>
 </html>
