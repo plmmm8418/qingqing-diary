@@ -190,6 +190,9 @@ label.f input:focus,label.f textarea:focus{border-color:var(--peach)}
 .gbtn[disabled]{opacity:.5}
 .acct{display:flex;align-items:center;gap:12px}
 .acct img,.acct span{width:44px;height:44px;border-radius:50%;background:#faf5f2;display:flex;align-items:center;justify-content:center;font-size:22px}
+.logintip{background:linear-gradient(135deg,#eaf4ff,#fff3ec);border:2px solid #d6e8fb;border-radius:var(--r);padding:16px;margin-bottom:14px;text-align:center;box-shadow:var(--shadow)}
+.logintip .lt-t{font-weight:800;font-size:16px}
+.logintip .later{margin-top:8px;font-size:13px;color:var(--soft);padding:6px 10px}
 .hide{display:none!important}
 </style>
 </head>
@@ -401,6 +404,7 @@ window.QQ = {
     const g = $('#gArea'), c = $('#cloudArea');
     if(g) g.innerHTML = googleBtn('用 Google 登入，取回我的紀錄');
     if(c) c.innerHTML = cloudCard();
+    const l = $('#loginTip'); if(l) l.innerHTML = loginTip();
     drawCloudDot();
   },
 };
@@ -538,6 +542,7 @@ function renderToday(){
     <div><div class="hello">${hi}，${esc(p.name)} 👋</div><div class="date">${wd.getMonth()+1} 月 ${wd.getDate()} 日 星期${wk}</div></div>
     <div style="text-align:right"><div class="streak" title="連續打卡天數">🔥 ${st.n} 天</div><div id="cloudDot" class="muted" style="font-size:11px;margin-top:4px" data-tab="settings"></div></div>
   </div>
+  <div id="loginTip">${loginTip()}</div>
   ${nudge(day) ? `<div class="nudge">${nudge(day)}</div>` : ''}
 
   <div class="card petcard ${acc.rainbow?'rainbow':''}">
@@ -811,6 +816,16 @@ function cloudCard(){
     ${C.error ? `<div class="warn" style="margin-top:10px">${esc(C.error)}</div>` : ''}
     <div class="row2"><button class="btn ghost" data-act="syncnow">立即同步</button><button class="btn ghost" data-act="logout">登出</button></div></div>`;
 }
+function loginTip(){
+  const C = window.Cloud;
+  if(!C || C.user || (S.loginTipUntil||0) > Date.now()) return '';
+  return `<div class="logintip">
+    <div class="lt-t">☁️ 用 Google 登入，紀錄就不怕不見</div>
+    <div class="muted" style="margin:4px 0 10px">換手機、刪掉 App 都能找回來，只有妳自己看得到</div>
+    ${googleBtn('用 Google 登入')}
+    ${C.error ? `<div class="warn" style="margin:10px 0 0">${esc(C.error)}</div>` : ''}
+    <button class="later" data-act="later">之後再說</button></div>`;
+}
 function drawCloudDot(){
   const el = $('#cloudDot'); if(!el) return;
   const C = window.Cloud;
@@ -926,6 +941,7 @@ document.addEventListener('click', e=>{
     case 'share': shareToday(); break;
     case 'login': { if(window.Cloud) Cloud.login(); break; }
     case 'logout': { if(confirm('登出後，這支手機上的紀錄還會留著，只是不再同步到雲端。確定登出？')) Cloud.logout(); break; }
+    case 'later': { S.loginTipUntil = Date.now() + 3*864e5; save(); $('#loginTip').innerHTML=''; toast('好～3 天後再提醒妳，也可以到「設定」登入'); break; }
     case 'syncnow': { Cloud.sync(); break; }
     case 'close': closeModal(); break;
   }
