@@ -194,7 +194,10 @@ label.f input:focus,label.f textarea:focus{border-color:var(--peach)}
 .logintip .lt-t{font-weight:800;font-size:16px}
 .logintip .later{margin-top:8px;font-size:13px;color:var(--soft);padding:6px 10px}
 .vids{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
-.vids .vh{font-weight:800;font-size:14px;margin-bottom:8px}
+.wrowx{display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px dashed #f1dfe4;font-size:13px;flex-wrap:wrap}.wrowx b{width:42px}
+.wstat{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}.wstat small{display:block;color:#a58b93;font-size:11px}.wstat b{font-size:18px}
+.pbar{height:10px;border-radius:9px;background:#f6e6ea;overflow:hidden;margin-top:10px}.pbar i{display:block;height:100%;background:linear-gradient(90deg,#ff9fb5,#ffc58f)}
+.vids .vh{font-weight:800;font-size:14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .vid{display:flex;gap:10px;align-items:flex-start;padding:8px;border-radius:16px;background:#faf5f2;margin-bottom:8px}
 .vid.on{background:#effaf5}
 .vthumb{position:relative;width:132px;flex:none;border-radius:12px;overflow:hidden;aspect-ratio:16/9;background:#eee}
@@ -350,12 +353,32 @@ const VIDEOS = {
     {id:'2tPzARoEa3M', t:'20分鐘室內健走｜低衝擊居家有氧', ch:'Mariness Fit', min:20, ph:[0,1]},
     {id:'FIq1DsHdndM', t:'30分鐘低強度全身運動｜膝蓋友好', ch:'Bellysu減肥中', min:32, ph:[1,2]},
     {id:'TtbrOIUYtGw', t:'30分鐘超慢跑｜初學節拍、含暖身伸展', ch:'一米六健身服利社', min:35, ph:[1,2]},
+    {id:'mH8kyyNEy48', t:'20分鐘室內健走｜低衝擊、幫助燃脂', ch:'Mariness Fit', min:21, ph:[0,1]},
+    {id:'LH4y0ANqFW8', t:'20分鐘室內健走｜約2300步', ch:'Mariness Fit', min:21, ph:[0,1]},
+    {id:'b_0gsPVFlHs', t:'20分鐘室內健走｜輕鬆有趣低衝擊', ch:'Mariness Fit', min:19, ph:[0,1]},
+    {id:'nsxCApkxXDE', t:'20分鐘不間斷踏步有氧｜無跳躍', ch:'照護線上', min:20, ph:[0,1]},
+    {id:'TLCTEUL_-Cs', t:'20分鐘超慢跑｜初階節拍、原地跑', ch:'一米六健身服利社', min:21, ph:[0,1]},
+    {id:'mLxJr0afG74', t:'30分鐘3000步｜踏步有氧、新手友善', ch:'一米六健身服利社', min:31, ph:[1,2]},
+    {id:'hVqur9MAkfQ', t:'室內5000步踏步操｜不傷膝蓋', ch:'Jane Cheng', min:33, ph:[1,2]},
+    {id:'3N2cNNcEOiE', t:'35分鐘5000步居家有氧', ch:'May Fit', min:38, ph:[2]},
+    {id:'z9Z8h0SXTkU', t:'40分鐘4000步踏步運動｜新手友善', ch:'一米六健身服利社', min:39, ph:[2]},
     {id:'riXpBZh8Q8I', t:'40分鐘室內健走｜約5000步', ch:'Mariness Fit', min:40, ph:[2]},
   ],
   burn: [
     {id:'KJrm8eVs1pE', t:'10分鐘無跳躍全身燃脂（新手適用）', ch:'游書庭 樂活有氧', min:10, ph:[0]},
+    {id:'saP-igYfW8c', t:'10分鐘無跳躍運動｜不傷膝、新手適合', ch:'游書庭 樂活有氧', min:10, ph:[0]},
+    {id:'1TRD4cvh0F0', t:'10分鐘大體重減肥｜全程站立無跑跳', ch:'游書庭 樂活有氧', min:10, ph:[0]},
+    {id:'U_mxeWEWmao', t:'10分鐘徒手有氧｜不跳躍不吵鄰', ch:'Mariness Fit', min:10, ph:[0,1]},
+    {id:'IRO6OY64jp0', t:'10分鐘輕鬆有氧｜無跳躍、無深蹲', ch:'北木健身', min:11, ph:[0,1]},
+    {id:'1uStVMmWfyg', t:'10分鐘踏步有氧｜無跳躍、不間斷', ch:'照護線上', min:11, ph:[0,1]},
+    {id:'ntCOSg6E7nU', t:'15分鐘無跳躍全身燃脂｜全程站立', ch:'游書庭 樂活有氧', min:15, ph:[0,1]},
     {id:'_q9TwSAwUxM', t:'15分鐘全身燃脂｜無跳躍、不傷膝', ch:'游書庭 樂活有氧', min:14, ph:[0,1]},
     {id:'-hS70qmClnI', t:'20分鐘站立式燃脂｜無跳躍、不傷膝', ch:'游書庭 樂活有氧', min:21, ph:[1,2]},
+    {id:'LmrKejHOaG4', t:'20分鐘站立式全身燃脂｜不傷膝', ch:'游書庭 樂活有氧', min:21, ph:[1,2]},
+    {id:'Alt4IBW5I6s', t:'20分鐘瘦腰腹｜全程站立、無跳躍', ch:'游書庭 樂活有氧', min:20, ph:[1,2]},
+    {id:'40Zn6lQ0ebI', t:'15分鐘燃脂有氧｜溫和好跟', ch:'北木健身', min:16, ph:[1,2]},
+    {id:'56A-3qmJFjs', t:'30分鐘站立式燃脂｜無跳躍、不傷膝', ch:'游書庭 樂活有氧', min:32, ph:[2]},
+    {id:'OvxerAYAy-4', t:'30分鐘站立式全身燃脂｜零跳躍', ch:'游書庭 樂活有氧', min:30, ph:[2]},
     {id:'PXnUli_4dxU', t:'30分鐘全程站立有氧｜無跳躍無深蹲', ch:'周六野 Zoey', min:31, ph:[2]},
   ],
   health: [
@@ -364,6 +387,12 @@ const VIDEOS = {
     {id:'nwJ4hQ6X2_Q', t:'10分鐘早安保健運動', ch:'中華民國健身運動協會', min:10, ph:[0,1,2]},
     {id:'Bewk1ML6WIE', t:'八段錦入門｜完整練習12分鐘', ch:'香港癌症基金會', min:12, ph:[0,1,2]},
     {id:'cvlwcIiOrq0', t:'八段錦完整跟練｜語音帶領與呼吸指引', ch:'曉武會館', min:17, ph:[0,1,2]},
+    {id:'4Ph6W8OrdIU', t:'10分鐘紓壓動動操｜無跳躍無旋轉', ch:'中華民國健身運動協會', min:11, ph:[0,1,2]},
+    {id:'oM4m5-BAZVI', t:'10分鐘午安護脊健身操', ch:'中華民國健身運動協會', min:10, ph:[0,1,2]},
+    {id:'aHjvZ5c7BV0', t:'10分鐘職場健身操', ch:'中華民國健身運動協會', min:11, ph:[0,1,2]},
+    {id:'7rZITKjjZYg', t:'10分鐘坐姿柔軟操｜久坐族必練', ch:'北木健身', min:11, ph:[0,1,2]},
+    {id:'4gXdDiu-4e8', t:'健康操短版13分鐘｜國語版', ch:'衛生福利部國民健康署', min:13, ph:[0,1,2]},
+    {id:'_NFyLQxSTiI', t:'樂齡運動趣｜16分鐘跟練', ch:'衛生福利部國民健康署', min:16, ph:[1,2]},
     {id:'AExY450VSxg', t:'15分鐘上班族健康操', ch:'衛生福利部國民健康署', min:16, ph:[1,2]},
     {id:'KkdH1QMem3M', t:'30分鐘居家有氧舞蹈｜初學者跟練', ch:'中華民國健身運動協會', min:30, ph:[1,2]},
   ],
@@ -372,6 +401,13 @@ const VIDEOS = {
     {id:'-g9B1jklK3I', t:'十分鐘全身拉筋舒展', ch:'照護線上', min:11, ph:[0,1,2]},
     {id:'s5Za2RHBUuk', t:'睡前瑜珈｜五個伸展一覺到天亮', ch:'凱蒂瑜伽', min:9, ph:[0,1,2]},
     {id:'XEP0dpHdvPk', t:'10分鐘坐著伸展｜釋放肩頸壓力', ch:'凱蒂瑜伽', min:10, ph:[0,1,2]},
+    {id:'CBzyr-wKxfA', t:'每日10分鐘早晨伸展｜喚醒身體', ch:'游書庭 樂活有氧', min:10, ph:[0,1,2]},
+    {id:'bRyJRzPamog', t:'站著就能做的全身拉筋', ch:'照護線上', min:10, ph:[0,1,2]},
+    {id:'FHlDmnitOA8', t:'8分鐘全身伸展｜運動後拉筋', ch:'一米六健身服利社', min:9, ph:[0,1,2]},
+    {id:'zF_2-21l0cw', t:'12分鐘全身拉筋伸展操', ch:'北木健身', min:12, ph:[0,1,2]},
+    {id:'Jp7040Ob-zA', t:'睡前放鬆伸展｜幫助好睡', ch:'北木健身', min:13, ph:[0,1,2]},
+    {id:'eJbPPcN69h8', t:'15分鐘全身伸展｜日常放鬆', ch:'游書庭 樂活有氧', min:16, ph:[1,2]},
+    {id:'-Lqg9xZU9CA', t:'20分鐘拉筋｜深層放鬆疲憊身體', ch:'一米六健身服利社', min:21, ph:[1,2]},
   ],
 };
 const VIDEO_KIND = {health:'☀️ 健康操（每天一支，提神不累）', walk:'🚶‍♀️ 下雨不想出門？在家跟著走', burn:'🔥 燃脂跟練（可取代上面的肌力）', stretch:'🧘‍♀️ 放鬆伸展跟練'};
@@ -461,7 +497,11 @@ window.QQ = {
   get: ()=>S,
   merge: mergeData,
   replace(d){ S = d; localStorage.setItem(KEY, JSON.stringify(S)); petLine = null; render(); },
+  watchers: ['kjkjkjkjkj47@gmail.com'],   // 觀察帳號：只能看、不能改
+  setWatch(w){ WATCH = w; render(); },
+  render(){ render(); },
   refresh(){ // 只更新雲端那一塊，不打斷正在填的表單
+    if(window.Cloud && Cloud.watcher) return render();
     const g = $('#gArea'), c = $('#cloudArea');
     if(g) g.innerHTML = googleBtn('用 Google 登入，取回我的紀錄');
     if(c) c.innerHTML = cloudCard();
@@ -682,7 +722,7 @@ function workoutCard(day){
         <div class="chips">${p.moves.map(id=>`<span>${MOVES[id].e} ${MOVES[id].n}</span>`).join('')}</div></div>
       <button class="mini ${day.trainDone?'on':''}" data-act="traindone">✓</button></div>
       <button class="btn" data-act="train">▶ 跟著圓圓一起做</button>` : `<div class="muted">今天不用做肌力，走完路就完成囉！</div>`}
-    <div class="vids"><div class="vh">🎬 今日跟練影片</div>
+    <div class="vids"><div class="vh">🎬 今日跟練影片 <button class="mini" data-act="swapall">🔄 全部換一批</button></div>
     ${todayVideos(day).map(kind=>{ const v = videoFor(kind, day); const done = day.vdone && day.vdone[kind];
       return `<div class="vid ${done?'on':''}">
         <button class="vthumb" data-act="playv" data-k="${kind}" aria-label="播放 ${esc(v.t)}"><img src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="" loading="lazy"><span>▶</span><em>${v.min} 分</em></button>
@@ -874,7 +914,7 @@ function cloudCard(){
   const C = window.Cloud;
   if(!C) return `<div class="card"><h3>☁️ 雲端同步</h3><div class="muted">雲端功能還沒載入（可能沒有網路），紀錄先存在手機裡，連上網再回來看看。</div></div>`;
   if(!C.user) return `<div class="card"><h3>☁️ 雲端同步 <small>建議開啟</small></h3>
-    <div class="muted" style="line-height:1.7;margin-bottom:10px">用妳自己的 Google 帳號登入後，紀錄會自動存到雲端：換手機、刪掉 App 都不會不見，手機和電腦也能看同一本日記。只有妳自己看得到。</div>
+    <div class="muted" style="line-height:1.7;margin-bottom:10px">用妳自己的 Google 帳號登入後，紀錄會自動存到雲端：換手機、刪掉 App 都不會不見，手機和電腦也能看同一本日記。只有妳和老大看得到（老大只能看、不能改，心情小記的文字不會給他看）。</div>
     ${googleBtn('用 Google 登入')}
     ${C.error ? `<div class="warn" style="margin-top:10px">${esc(C.error)}</div>` : ''}</div>`;
   const t = C.lastSync ? `${pad(C.lastSync.getHours())}:${pad(C.lastSync.getMinutes())}` : '';
@@ -882,15 +922,53 @@ function cloudCard(){
     <div class="acct">${C.user.photoURL?`<img src="${esc(C.user.photoURL)}" alt="" referrerpolicy="no-referrer">`:'<span>👤</span>'}
       <div><b>${esc(C.user.displayName||'')}</b><div class="muted">${esc(C.user.email||'')}</div></div></div>
     <div class="muted" style="margin-top:8px">✓ 每次打卡都會自動存到雲端</div>
+    <div class="muted" style="margin-top:4px">👀 老大可以看妳的打卡進度（只能看、不能改；心情小記的文字不會給他看）</div>
     ${C.error ? `<div class="warn" style="margin-top:10px">${esc(C.error)}</div>` : ''}
     <div class="row2"><button class="btn ghost" data-act="syncnow">立即同步</button><button class="btn ghost" data-act="logout">登出</button></div></div>`;
+}
+/* ========== 觀察模式（老大用，只能看）========== */
+let WATCH = null;
+function renderWatch(){
+  const C = window.Cloud;
+  let body;
+  if(!WATCH || WATCH.loading) body = `<div class="card"><div class="muted">正在讀取闆娘的進度…</div></div>`;
+  else if(WATCH.err) body = `<div class="card"><div class="warn">${esc(WATCH.err)}</div></div>`;
+  else if(!WATCH.list.length) body = `<div class="card"><div class="muted" style="line-height:1.7">雲端還沒有紀錄。<br>請闆娘在她的手機用「她自己的 Google 帳號」登入一次，這裡就看得到了。</div></div>`;
+  else body = WATCH.list.map(watchCard).join('');
+  return `<div class="top"><div><div class="hello">👀 觀察模式</div><div class="date">只能看、不能改</div></div></div>
+    ${body}
+    <div class="card"><div class="acct">${C.user.photoURL?`<img src="${esc(C.user.photoURL)}" alt="" referrerpolicy="no-referrer">`:'<span>👤</span>'}
+      <div><b>${esc(C.user.displayName||'')}</b><div class="muted">${esc(C.user.email||'')}</div></div></div>
+    <div class="row2"><button class="btn ghost" data-act="watchreload">🔄 重新整理</button><button class="btn ghost" data-act="logout">登出</button></div></div>
+    <div class="muted" style="text-align:center;margin-bottom:20px">版本 ${APP_VERSION}</div>`;
+}
+function watchCard(u){
+  const keep = S;
+  S = JSON.parse(JSON.stringify(u.data)); S.days = S.days || {};
+  try{
+    const p = S.profile, st = streak(), s = stats();
+    const pct = s.goalLoss > 0 ? Math.min(100, Math.round(s.lost / s.goalLoss * 100)) : 0;
+    const t = u.updatedAt ? new Date(u.updatedAt) : null;
+    const rows = Array.from({length:7}, (_,i)=>{
+      const d = new Date(); d.setDate(d.getDate()-i); const k = dkey(d), day = S.days[k];
+      if(!active(day)) return `<div class="wrowx"><b>${i===0?'今天':dateLabel(k)}</b><span class="muted">還沒打卡</span></div>`;
+      const mv = (day.walkDone?1:0) + (day.trainDone?1:0) + Object.values(day.vdone||{}).filter(Boolean).length;
+      return `<div class="wrowx"><b>${i===0?'今天':dateLabel(k)}</b><span>✅ ${doneCount(day)}/${TOTAL}</span><span>⚖️ ${day.w?fmt(day.w):'－'}</span><span>💧 ${day.water||0}</span><span>🏃‍♀️ ${mv?mv+' 項':'－'}</span><span>${day.mood||''}</span></div>`;
+    }).join('');
+    return `<div class="card"><h3>💗 ${esc(p.name)} <small>${t?`最後更新 ${t.getMonth()+1}/${t.getDate()} ${pad(t.getHours())}:${pad(t.getMinutes())}`:''}</small></h3>
+      <div class="wstat"><div><small>趨勢體重</small><b>${fmt(s.cur)}</b></div><div><small>已減</small><b>${fmt(s.lost)}</b></div><div><small>離目標</small><b>${fmt(s.remain)}</b></div><div><small>連續</small><b>🔥${st.n}</b></div></div>
+      <div class="pbar"><i style="width:${pct}%"></i></div>
+      <div class="muted" style="margin:6px 0 10px">起點 ${fmt(p.start)} → 目標 ${fmt(p.goal)} kg，完成 ${pct}%${s.rate!=null?`，最近每週約 ${s.rate>0?'−':'+'}${fmt(Math.abs(s.rate))} kg`:''}</div>
+      <div class="vh" style="font-weight:800;margin-bottom:6px">最近 7 天</div>${rows}
+      <div class="muted" style="margin-top:8px">看到她有進步，記得傳個訊息誇誇她 💌</div></div>`;
+  } finally { S = keep; }
 }
 function loginTip(){
   const C = window.Cloud;
   if(!C || C.user || (S.loginTipUntil||0) > Date.now()) return '';
   return `<div class="logintip">
     <div class="lt-t">☁️ 用 Google 登入，紀錄就不怕不見</div>
-    <div class="muted" style="margin:4px 0 10px">換手機、刪掉 App 都能找回來，只有妳自己看得到</div>
+    <div class="muted" style="margin:4px 0 10px">換手機、刪掉 App 都能找回來，只有妳和老大看得到（老大只能看）</div>
     ${googleBtn('用 Google 登入')}
     ${C.error ? `<div class="warn" style="margin:10px 0 0">${esc(C.error)}</div>` : ''}
     <button class="later" data-act="later">之後再說</button></div>`;
@@ -904,6 +982,7 @@ function drawCloudDot(){
 /* ========== 主繪製 ========== */
 function render(){
   const app = $('#app');
+  if(window.Cloud && Cloud.watcher){ $('#tabs').classList.add('hide'); app.innerHTML = renderWatch(); return; }
   if(!S.profile){ app.innerHTML = renderOnboard(); $('#tabs').classList.add('hide'); bindGoalHint(); return; }
   $('#tabs').classList.remove('hide');
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab));
@@ -1004,6 +1083,7 @@ document.addEventListener('click', e=>{
     case 'traindone': { day.trainDone = !day.trainDone; syncWorkout(day); if(!day.habits.walk) day.perfect=false; afterProgress(); break; }
     case 'train': startTrain(); break;
     case 'playv': playVideo(el.dataset.k); break;
+    case 'swapall': { day.vswap = day.vswap||{}; todayVideos(day).forEach(k=>{ day.vswap[k]=(day.vswap[k]||0)+1; }); save(); render(); toast('換好了～今天看看新的 🎬'); break; }
     case 'swapv': { day.vswap = day.vswap||{}; day.vswap[el.dataset.k] = (day.vswap[el.dataset.k]||0) + 1; save(); render(); break; }
     case 'vdone': {
       const k = el.dataset.k; day.vdone = day.vdone||{}; day.vdone[k] = true;
@@ -1017,7 +1097,8 @@ document.addEventListener('click', e=>{
     case 'ics': makeICS(); break;
     case 'share': shareToday(); break;
     case 'login': { if(window.Cloud) Cloud.login(); break; }
-    case 'logout': { if(confirm('登出後，這支手機上的紀錄還會留著，只是不再同步到雲端。確定登出？')) Cloud.logout(); break; }
+    case 'watchreload': { if(window.Cloud) Cloud.loadWatch(); break; }
+    case 'logout': { if(Cloud.watcher){ Cloud.logout(); break; } if(confirm('登出後，這支手機上的紀錄還會留著，只是不再同步到雲端。確定登出？')) Cloud.logout(); break; }
     case 'later': { S.loginTipUntil = Date.now() + 3*864e5; save(); $('#loginTip').innerHTML=''; toast('好～3 天後再提醒妳，也可以到「設定」登入'); break; }
     case 'syncnow': { Cloud.sync(); break; }
     case 'close': closeModal(); break;
@@ -1167,7 +1248,7 @@ function confetti(set){
 }
 
 // 自動更新：打開或回到 App 時，偷偷問伺服器有沒有新版，有就換上
-const APP_VERSION = '20261122-6';
+const APP_VERSION = '20261123-1';
 async function checkUpdate(){
   try{
     const r = await fetch(location.pathname + '?check=' + Date.now(), {cache:'no-store'});
@@ -1196,7 +1277,7 @@ render();
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut }
   from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 
 // 這組是 Firebase 網頁設定（本來就是公開的，安全靠資料庫規則把關）
 const app = initializeApp({
@@ -1222,7 +1303,21 @@ const errText = e => MSG[e && e.code] || ('登入／同步出了點問題：' + 
 
 let pushTimer = null;
 const Cloud = {
-  user: null, busy: false, lastSync: null, error: '',
+  user: null, busy: false, lastSync: null, error: '', watcher: false,
+  async loadWatch(){
+    QQ.setWatch({loading:true});
+    try{
+      const snap = await getDocs(collection(db, 'users'));
+      const list = [];
+      snap.forEach(d=>{
+        if(d.id === Cloud.user.uid) return;
+        const v = d.data();
+        try{ const data = JSON.parse(v.data || '{}'); if(data.profile) list.push({email: v.email || '', updatedAt: v.updatedAt || 0, data}); }catch(_){}
+      });
+      list.sort((a,b)=>b.updatedAt - a.updatedAt);
+      QQ.setWatch({list});
+    }catch(e){ QQ.setWatch({err: errText(e)}); }
+  },
   async login(){
     Cloud.error = '';
     try { await signInWithPopup(auth, provider); }
@@ -1239,6 +1334,7 @@ const Cloud = {
   ref(){ return doc(db, 'users', Cloud.user.uid); },
   async sync(){
     if(!Cloud.user || Cloud.busy) return;
+    if(Cloud.watcher) return Cloud.loadWatch();
     Cloud.busy = true; Cloud.error = ''; QQ.refresh();
     try{
       const snap = await getDoc(Cloud.ref());
@@ -1253,7 +1349,7 @@ const Cloud = {
   },
   async push(inside){
     const d = QQ.get();
-    if(!Cloud.user || !d.profile) return;
+    if(!Cloud.user || Cloud.watcher || !d.profile) return;
     try{
       await setDoc(Cloud.ref(), { data: JSON.stringify(d), updatedAt: d.updatedAt || Date.now(), email: Cloud.user.email || '' });
       Cloud.lastSync = new Date(); Cloud.error = '';
@@ -1265,14 +1361,16 @@ window.Cloud = Cloud;
 
 // 每次存檔後 1.5 秒自動上傳（連續點很多下只傳一次）
 window.addEventListener('qq-saved', ()=>{
-  if(!Cloud.user) return;
+  if(!Cloud.user || Cloud.watcher) return;
   clearTimeout(pushTimer); pushTimer = setTimeout(()=>Cloud.push(), 1500);
 });
 
 getRedirectResult(auth).catch(e=>{ Cloud.error = errText(e); QQ.refresh(); });
 onAuthStateChanged(auth, user=>{
+  const wasWatcher = Cloud.watcher;
   Cloud.user = user;
-  QQ.refresh();
+  Cloud.watcher = !!(user && user.email && QQ.watchers.includes(user.email.toLowerCase()));
+  if(wasWatcher !== Cloud.watcher) QQ.render(); else QQ.refresh();
   if(user) Cloud.sync();
 });
 QQ.refresh();
