@@ -211,6 +211,54 @@ label.f input:focus,label.f textarea:focus{border-color:var(--peach)}
 .vmodal{max-width:560px;padding:12px 12px 14px}
 .vframe{position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#000}
 .vframe iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+/* 三頁切換 */
+.seg{display:flex;gap:4px;background:#fff;border-radius:999px;padding:4px;margin:0 0 14px;box-shadow:var(--shadow);position:sticky;top:calc(6px + env(safe-area-inset-top));z-index:20}
+.seg button{flex:1;padding:9px 0;border-radius:999px;font-weight:800;font-size:14px;color:var(--soft)}
+.seg button.on{background:var(--peach-d);color:#fff}
+/* 提醒 */
+.pform .r{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pform label.f{margin-bottom:8px}
+.pgrp{font-weight:800;font-size:14px;margin:4px 2px 8px;color:var(--ink)}
+.pit{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.pit:last-child{border-bottom:0}
+.pit .tm{font-weight:800;font-size:15px;width:48px;color:var(--peach-d)}
+.pit .tt{flex:1;font-size:15px;line-height:1.35;min-width:0;word-break:break-all}
+.pit .tt small{display:block;color:var(--soft);font-size:11px}
+.pit.done .tt{text-decoration:line-through;opacity:.5}
+.tag{display:inline-block;font-size:10px;border-radius:6px;padding:1px 5px;margin-left:4px;background:#eef6ff;color:var(--sky-d);text-decoration:none}
+.tag.late{background:#fff0f0;color:#c0573e}
+.todaybar{display:flex;align-items:center;gap:10px;background:#eef6ff;border-radius:16px;padding:11px 14px;margin-bottom:14px;font-size:14px;box-shadow:var(--shadow)}
+.todaybar b{color:var(--sky-d)}
+/* 記帳 */
+.mnav{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px}
+.mnav b{font-size:18px}
+.msum{display:grid;grid-template-columns:repeat(3,1fr);text-align:center;gap:6px}
+.msum small{display:block;color:var(--soft);font-size:12px}
+.msum b{font-size:19px}
+.in-c{color:var(--mint-d)} .out-c{color:#e0715a}
+.ttog{display:flex;gap:6px;margin-bottom:10px}
+.ttog button{flex:1;padding:10px;border-radius:14px;background:#faf5f2;font-weight:800;color:var(--soft)}
+.ttog button.on.out{background:#ffe6df;color:#d4583d}
+.ttog button.on.in{background:#dff6ec;color:#2f9e78}
+.amt{display:flex;align-items:center;gap:6px;border:2px solid var(--line);border-radius:16px;padding:6px 12px;background:#fffdfb;margin-bottom:10px}
+.amt span{font-weight:800;color:var(--soft)}
+.amt input{flex:1;border:0;outline:0;background:none;font-size:28px;font-weight:800;width:100%;min-width:0}
+.cats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.cats button{padding:7px 11px;border-radius:999px;background:#faf5f2;font-size:14px}
+.cats button.on{background:var(--peach-d);color:#fff;font-weight:800}
+.mrow2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mrow2 input{width:100%;padding:11px;border-radius:14px;border:2px solid var(--line);background:#fffdfb;outline:none;min-width:0}
+.cbar{display:flex;align-items:center;gap:8px;font-size:13px;margin:7px 0}
+.cbar .cn{width:62px;flex:none}
+.cbar .cb{flex:1;height:10px;background:#f6ece8;border-radius:9px;overflow:hidden}
+.cbar .cb i{display:block;height:100%;background:linear-gradient(90deg,#ffb59a,#f28c6a);border-radius:9px}
+.cbar .cv{width:86px;text-align:right;flex:none;color:var(--soft)}
+.lday{font-size:12px;color:var(--soft);font-weight:700;margin:10px 2px 2px}
+.lit{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--line);width:100%;text-align:left}
+.lit .le{font-size:22px;width:30px;text-align:center}
+.lit .lt{flex:1;font-size:14px;min-width:0}
+.lit .lt small{display:block;color:var(--soft);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lit .lv{font-weight:800;font-size:15px}
 .hide{display:none!important}
 </style>
 </head>
@@ -488,6 +536,8 @@ function mergeData(a, b){
   const seen = new Set(m.postcards.map(c=>c.d+c.t));
   (o.postcards||[]).forEach(c=>{ if(!seen.has(c.d+c.t)) m.postcards.push(c); });
   m.postcards.sort((x,y)=> x.d < y.d ? -1 : x.d > y.d ? 1 : 0);
+  m.events = mergeList(a.events, b.events);
+  m.ledger = mergeList(a.ledger, b.ledger);
   m.unlocked = Math.max(n.unlocked||0, o.unlocked||0);
   m.updatedAt = Math.max(n.updatedAt||0, o.updatedAt||0);
   return m;
@@ -644,6 +694,7 @@ function renderToday(){
     <div style="text-align:right"><div class="streak" title="連續打卡天數">🔥 ${st.n} 天</div><div id="cloudDot" class="muted" style="font-size:11px;margin-top:4px" data-tab="settings"></div></div>
   </div>
   <div id="loginTip">${loginTip()}</div>
+  ${todayPlanBar()}
   ${nudge(day) ? `<div class="nudge">${nudge(day)}</div>` : ''}
 
   <div class="card petcard ${acc.rainbow?'rainbow':''}">
@@ -979,14 +1030,198 @@ function drawCloudDot(){
   el.textContent = !C || !C.user ? '' : C.error ? '⚠️' : C.busy ? '☁️…' : '☁️✓';
 }
 
+/* ========== 三頁：日記／提醒／記帳 ========== */
+let section = localStorage.getItem('qq-section') || 'diary';
+function segBar(){
+  const b = (k,t)=>`<button data-sec="${k}" class="${section===k?'on':''}">${t}</button>`;
+  return `<div class="seg">${b('diary','💗 日記')}${b('plan','📅 提醒')}${b('money','💰 記帳')}</div>`;
+}
+const uid = ()=> Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const live = a => (a||[]).filter(x=>!x.del);
+// 合併有 id 的清單：同一筆以「最後修改」的為主，刪除也會同步
+function mergeList(a, b){
+  const m = new Map();
+  [...(a||[]), ...(b||[])].forEach(x=>{ const o = m.get(x.id); if(!o || (x.u||0) > (o.u||0)) m.set(x.id, x); });
+  return [...m.values()];
+}
+
+/* ---------- 📅 提醒 ---------- */
+const REP = {none:'不重複', daily:'每天', weekly:'每週', monthly:'每月'};
+function occursOn(ev, k){
+  if(k < ev.date) return false;
+  if(ev.rep==='daily') return true;
+  if(ev.rep==='weekly') return parseKey(k).getDay() === parseKey(ev.date).getDay();
+  if(ev.rep==='monthly') return parseKey(k).getDate() === parseKey(ev.date).getDate();
+  return k === ev.date;
+}
+function itemsOn(k){
+  return live(S.events).filter(ev=>occursOn(ev,k)).sort((a,b)=> (a.time||'99') < (b.time||'99') ? -1 : 1);
+}
+function overdue(){
+  const t = dkey(), lim = dkey(addDays(new Date(), -14));
+  return live(S.events).filter(ev=>ev.rep==='none' && ev.date < t && ev.date >= lim && !(ev.done||{})[ev.date]);
+}
+function planItem(ev, k, late){
+  const done = (ev.done||{})[k];
+  return `<div class="pit ${done?'done':''}">
+    <div class="tm">${ev.time||'全天'}</div>
+    <div class="tt">${esc(ev.title)}${ev.rep!=='none'?`<span class="tag">${REP[ev.rep]}</span>`:''}${late?`<span class="tag late">過期 ${dateLabel(k)}</span>`:''}</div>
+    <button class="mini" data-x="pics" data-id="${ev.id}" title="加到手機行事曆">📅</button>
+    <button class="mini" data-x="pdel" data-id="${ev.id}" title="刪除">🗑</button>
+    <button class="mini ${done?'on':''}" data-x="pdone" data-id="${ev.id}" data-k="${k}" title="完成">✓</button></div>`;
+}
+function renderPlan(){
+  const t = dkey(), tm = dkey(addDays(new Date(),1));
+  const nextH = pad(Math.min(23, new Date().getHours()+1)) + ':00';
+  const todayList = overdue().map(ev=>planItem(ev, ev.date, true)).join('') + itemsOn(t).map(ev=>planItem(ev, t)).join('');
+  const tmList = itemsOn(tm).map(ev=>planItem(ev, tm)).join('');
+  let later = '';
+  for(let i=2;i<=30;i++){
+    const k = dkey(addDays(new Date(), i));
+    const its = itemsOn(k).filter(ev=>ev.rep==='none' || ev.rep==='monthly' || (ev.rep==='weekly' && i<=7));
+    if(its.length) later += `<div class="lday">${dateLabel(k)}（${'日一二三四五六'[parseKey(k).getDay()]}）</div>` + its.map(ev=>planItem(ev,k)).join('');
+  }
+  const daily = live(S.events).filter(ev=>ev.rep==='daily');
+  return `<div class="top"><div><div class="hello">📅 提醒</div><div class="date">記下要做的事，做完點 ✓</div></div></div>
+  <div class="card pform">
+    <label class="f">要做什麼<input id="pTitle" maxlength="60" placeholder="例如：回診、繳電費、接小孩"></label>
+    <div class="r"><label class="f">日期<input id="pDate" type="date" value="${t}"></label>
+    <label class="f">時間<input id="pTime" type="time" value="${nextH}"></label></div>
+    <label class="f">重複<select id="pRep">${Object.entries(REP).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></label>
+    <button class="btn" data-x="padd">＋ 新增提醒</button>
+  </div>
+  <div class="card"><div class="pgrp">今天</div>${todayList || '<div class="muted">今天沒有提醒，好好休息 ☕</div>'}</div>
+  <div class="card"><div class="pgrp">明天</div>${tmList || '<div class="muted">明天還沒有提醒</div>'}</div>
+  ${later ? `<div class="card"><div class="pgrp">之後 30 天</div>${later}${daily.length?`<div class="muted" style="margin-top:8px">每天重複的 ${daily.length} 件不列在這裡</div>`:''}</div>` : ''}
+  <div class="muted" style="text-align:center;margin:-2px 8px 20px;line-height:1.6">想讓手機準時響？按每筆旁邊的 📅，加到手機行事曆就會跳通知</div>`;
+}
+function eventICS(ev){
+  const [y,mo,d] = ev.date.split('-'), [h,mi] = (ev.time||'09:00').split(':');
+  const stamp = new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'');
+  const rr = {daily:'RRULE:FREQ=DAILY', weekly:'RRULE:FREQ=WEEKLY', monthly:'RRULE:FREQ=MONTHLY'}[ev.rep];
+  const safe = String(ev.title).replace(/[\\,;]/g, m=>'\\'+m).replace(/\n/g,' ');
+  const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//qingqing-diary//ZH-TW','BEGIN:VEVENT',
+    `UID:qq-ev-${ev.id}@qingqing-diary`, `DTSTAMP:${stamp}`, `DTSTART:${y}${mo}${d}T${h}${mi}00`, 'DURATION:PT15M',
+    ...(rr?[rr]:[]), `SUMMARY:${safe}`, 'BEGIN:VALARM','ACTION:DISPLAY','TRIGGER:PT0M',`DESCRIPTION:${safe}`,'END:VALARM','END:VEVENT','END:VCALENDAR'];
+  const blob = new Blob([lines.join('\r\n')], {type:'text/calendar;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `提醒-${String(ev.title).slice(0,12)}.ics`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+  toast('打開檔案、按「加入」就會準時提醒 📅');
+}
+function todayPlanBar(){
+  const n = itemsOn(dkey()).filter(ev=>!(ev.done||{})[dkey()]).length + overdue().length;
+  return n ? `<button class="todaybar" data-sec="plan" style="width:100%;text-align:left">📅 <span style="flex:1">今天還有 <b>${n}</b> 件提醒要做</span><span class="muted">看看 ›</span></button>` : '';
+}
+
+/* ---------- 💰 記帳 ---------- */
+const CATS = {
+  out: [['餐飲','🍱'],['交通','🚗'],['購物','🛍️'],['家用','🏠'],['醫療','💊'],['娛樂','🎉'],['其他','📦']],
+  in:  [['薪水','💼'],['獎金','🎁'],['投資','📈'],['其他','📦']],
+};
+const catEmoji = (t,c)=> ((CATS[t]||[]).find(x=>x[0]===c)||['','📦'])[1];
+let mType = 'out', mCat = '餐飲', mMonth = dkey().slice(0,7);
+const money = n => 'NT$ ' + Math.round(n).toLocaleString();
+function catChips(t, sel){ return CATS[t].map(([c,e])=>`<button data-x="mcat" data-c="${c}" class="${c===sel?'on':''}">${e} ${c}</button>`).join(''); }
+function renderMoney(){
+  const list = live(S.ledger).filter(x=>x.date.slice(0,7)===mMonth).sort((a,b)=> a.date===b.date ? (b.u||0)-(a.u||0) : a.date < b.date ? 1 : -1);
+  const inSum = list.filter(x=>x.type==='in').reduce((a,x)=>a+x.amt,0);
+  const outSum = list.filter(x=>x.type==='out').reduce((a,x)=>a+x.amt,0);
+  const byCat = {}; list.filter(x=>x.type==='out').forEach(x=>byCat[x.cat]=(byCat[x.cat]||0)+x.amt);
+  const cats = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  const max = cats.length ? cats[0][1] : 1;
+  const [y,m] = mMonth.split('-').map(Number);
+  let rows = '', lastD = '';
+  list.forEach(x=>{
+    if(x.date!==lastD){ lastD = x.date; rows += `<div class="lday">${dateLabel(x.date)}（${'日一二三四五六'[parseKey(x.date).getDay()]}）</div>`; }
+    rows += `<button class="lit" data-x="medit" data-id="${x.id}"><span class="le">${catEmoji(x.type,x.cat)}</span>
+      <span class="lt">${esc(x.cat)}${x.note?`<small>${esc(x.note)}</small>`:''}</span>
+      <span class="lv ${x.type==='in'?'in-c':'out-c'}">${x.type==='in'?'+':'−'}${Math.round(x.amt).toLocaleString()}</span></button>`;
+  });
+  return `<div class="top"><div><div class="hello">💰 記帳</div><div class="date">金額 → 分類 → 存，三步完成</div></div></div>
+  <div class="card">
+    <div class="ttog"><button data-x="mtype" data-t="out" class="out ${mType==='out'?'on':''}">支出</button><button data-x="mtype" data-t="in" class="in ${mType==='in'?'on':''}">收入</button></div>
+    <div class="amt"><span>NT$</span><input id="mAmt" type="number" inputmode="decimal" min="0" placeholder="0"></div>
+    <div class="cats" id="mCats">${catChips(mType, mCat)}</div>
+    <div class="mrow2"><input id="mNote" maxlength="40" placeholder="備註（可不填）"><input id="mDate" type="date" value="${dkey()}"></div>
+    <button class="btn" data-x="madd">記一筆</button>
+  </div>
+  <div class="card">
+    <div class="mnav"><button class="mini" data-x="mprev">‹</button><b>${y} 年 ${m} 月</b><button class="mini" data-x="mnext">›</button></div>
+    <div class="msum"><div><small>收入</small><b class="in-c">${Math.round(inSum).toLocaleString()}</b></div><div><small>支出</small><b class="out-c">${Math.round(outSum).toLocaleString()}</b></div><div><small>結餘</small><b>${Math.round(inSum-outSum).toLocaleString()}</b></div></div>
+  </div>
+  ${cats.length ? `<div class="card"><h3>錢花在哪 <small>這個月的支出</small></h3>${cats.map(([c,v])=>`<div class="cbar"><span class="cn">${catEmoji('out',c)} ${esc(c)}</span><span class="cb"><i style="width:${Math.max(3,v/max*100)}%"></i></span><span class="cv">${Math.round(v).toLocaleString()}・${Math.round(v/outSum*100)}%</span></div>`).join('')}</div>` : ''}
+  <div class="card"><h3>明細 <small>點一筆可以修改</small></h3>${rows || '<div class="muted">這個月還沒有紀錄</div>'}</div>`;
+}
+function editEntry(x){
+  closeModal();
+  const m = document.createElement('div'); m.className='mask'; m.id='mask';
+  m.innerHTML = `<div class="modal" style="text-align:left"><h2 style="text-align:center">修改這一筆</h2>
+    <div class="ttog"><button data-x="etype" data-t="out" class="out ${x.type==='out'?'on':''}">支出</button><button data-x="etype" data-t="in" class="in ${x.type==='in'?'on':''}">收入</button></div>
+    <div class="amt"><span>NT$</span><input id="eAmt" type="number" inputmode="decimal" value="${x.amt}"></div>
+    <div class="cats" id="eCats" data-t="${x.type}">${catChips(x.type, x.cat).replace(/data-x="mcat"/g,'data-x="ecat"')}</div>
+    <div class="mrow2"><input id="eNote" maxlength="40" value="${esc(x.note||'')}" placeholder="備註"><input id="eDate" type="date" value="${x.date}"></div>
+    <button class="btn" data-x="esave" data-id="${x.id}">儲存</button>
+    <div class="row2"><button class="btn ghost" data-x="edel" data-id="${x.id}">刪除</button><button class="btn ghost" data-act="close">取消</button></div></div>`;
+  m.addEventListener('click', e=>{ if(e.target===m) closeModal(); });
+  document.body.appendChild(m);
+}
+
+document.addEventListener('click', e=>{
+  const sb = e.target.closest('[data-sec]');
+  if(sb){ section = sb.dataset.sec; localStorage.setItem('qq-section', section); render(); window.scrollTo(0,0); return; }
+  const el = e.target.closest('[data-x]'); if(!el) return;
+  const x = el.dataset.x, now = Date.now();
+  S.events = S.events || []; S.ledger = S.ledger || [];
+  const findE = id => S.events.find(v=>v.id===id), findL = id => S.ledger.find(v=>v.id===id);
+  switch(x){
+    case 'padd': {
+      const title = $('#pTitle').value.trim(), date = $('#pDate').value, time = $('#pTime').value;
+      if(!title){ toast('先寫要做什麼'); $('#pTitle').focus(); return; }
+      if(!date){ toast('選一下日期'); return; }
+      S.events.push({id:uid(), title, date, time, rep:$('#pRep').value, done:{}, u:now});
+      save(); render(); toast('記好了 ✓ 想準時響就按 📅'); break; }
+    case 'pdone': { const ev = findE(el.dataset.id); if(!ev) return; ev.done = ev.done||{}; ev.done[el.dataset.k] = !ev.done[el.dataset.k]; ev.u = now; save(); render(); if(ev.done[el.dataset.k]) toast('完成一件，好棒 ✨'); break; }
+    case 'pdel': { const ev = findE(el.dataset.id); if(!ev) return;
+      if(!confirm(`刪除「${ev.title}」${ev.rep!=='none'?'（之後重複的也會一起刪掉）':''}？`)) return;
+      ev.del = true; ev.u = now; save(); render(); toast('刪掉了'); break; }
+    case 'pics': { const ev = findE(el.dataset.id); if(ev) eventICS(ev); break; }
+    case 'mtype': { mType = el.dataset.t; mCat = CATS[mType][0][0];
+      document.querySelectorAll('[data-x=mtype]').forEach(b=>b.classList.toggle('on', b.dataset.t===mType));
+      $('#mCats').innerHTML = catChips(mType, mCat); break; }
+    case 'mcat': { mCat = el.dataset.c; $('#mCats').innerHTML = catChips(mType, mCat); break; }
+    case 'madd': {
+      const amt = Math.round(parseFloat($('#mAmt').value)*100)/100;
+      if(!(amt > 0)){ toast('先輸入金額'); $('#mAmt').focus(); return; }
+      if(amt > 1e8){ toast('金額好像太大了，再確認一下'); return; }
+      const date = $('#mDate').value || dkey();
+      S.ledger.push({id:uid(), type:mType, amt, cat:mCat, note:$('#mNote').value.trim(), date, u:now});
+      mMonth = date.slice(0,7); save(); render();
+      toast(`${mType==='in'?'收入':'支出'} ${Math.round(amt).toLocaleString()} 記好了 ✓`); break; }
+    case 'mprev': case 'mnext': { const [y,m] = mMonth.split('-').map(Number); const d = new Date(y, m-1 + (x==='mnext'?1:-1), 1); mMonth = d.getFullYear()+'-'+pad(d.getMonth()+1); render(); break; }
+    case 'medit': { const it = findL(el.dataset.id); if(it) editEntry(it); break; }
+    case 'etype': { const t = el.dataset.t; document.querySelectorAll('[data-x=etype]').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
+      const c = $('#eCats'); c.dataset.t = t; c.innerHTML = catChips(t, CATS[t][0][0]).replace(/data-x="mcat"/g,'data-x="ecat"'); break; }
+    case 'ecat': { const c = $('#eCats'); c.innerHTML = catChips(c.dataset.t, el.dataset.c).replace(/data-x="mcat"/g,'data-x="ecat"'); break; }
+    case 'esave': { const it = findL(el.dataset.id); if(!it) return;
+      const amt = Math.round(parseFloat($('#eAmt').value)*100)/100;
+      if(!(amt > 0)){ toast('金額要大於 0'); return; }
+      const c = $('#eCats'), on = c.querySelector('.on');
+      Object.assign(it, {type:c.dataset.t, amt, cat: on ? on.dataset.c : CATS[c.dataset.t][0][0], note:$('#eNote').value.trim(), date:$('#eDate').value || it.date, u:now});
+      closeModal(); save(); render(); toast('改好了 ✓'); break; }
+    case 'edel': { const it = findL(el.dataset.id); if(!it || !confirm('確定刪除這一筆？')) return; it.del = true; it.u = now; closeModal(); save(); render(); toast('刪掉了'); break; }
+  }
+});
+
 /* ========== 主繪製 ========== */
 function render(){
   const app = $('#app');
   if(window.Cloud && Cloud.watcher){ $('#tabs').classList.add('hide'); app.innerHTML = renderWatch(); return; }
   if(!S.profile){ app.innerHTML = renderOnboard(); $('#tabs').classList.add('hide'); bindGoalHint(); return; }
-  $('#tabs').classList.remove('hide');
+  $('#tabs').classList.toggle('hide', section!=='diary');
+  if(section==='plan'){ app.innerHTML = segBar() + renderPlan(); drawCloudDot(); return; }
+  if(section==='money'){ app.innerHTML = segBar() + renderMoney(); drawCloudDot(); return; }
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab));
-  app.innerHTML = tab==='today'?renderToday(): tab==='weight'?renderWeight(): tab==='collect'?renderCollect(): renderSettings();
+  app.innerHTML = segBar() + (tab==='today'?renderToday(): tab==='weight'?renderWeight(): tab==='collect'?renderCollect(): renderSettings());
   if(tab==='settings') bindGoalHint();
   drawCloudDot();
   const note = $('#note');
@@ -1248,7 +1483,7 @@ function confetti(set){
 }
 
 // 自動更新：打開或回到 App 時，偷偷問伺服器有沒有新版，有就換上
-const APP_VERSION = '20261123-1';
+const APP_VERSION = '20261123-2';
 async function checkUpdate(){
   try{
     const r = await fetch(location.pathname + '?check=' + Date.now(), {cache:'no-store'});
@@ -1329,17 +1564,19 @@ const Cloud = {
       Cloud.error = errText(e); QQ.refresh();
     }
   },
-  async wipe(){ try{ await setDoc(Cloud.ref(), { data: '{}', updatedAt: Date.now(), email: Cloud.user.email || '' }); }catch(e){ Cloud.error = errText(e); } },
+  async wipe(){ try{ await setDoc(Cloud.pref(), { data: '{}', updatedAt: Date.now() }); await setDoc(Cloud.ref(), { data: '{}', updatedAt: Date.now(), email: Cloud.user.email || '' }); }catch(e){ Cloud.error = errText(e); } },
   async logout(){ await signOut(auth); Cloud.lastSync = null; },
   ref(){ return doc(db, 'users', Cloud.user.uid); },
+  pref(){ return doc(db, 'users', Cloud.user.uid, 'private', 'main'); },   // 提醒和記帳：只有本人讀得到
   async sync(){
     if(!Cloud.user || Cloud.busy) return;
     if(Cloud.watcher) return Cloud.loadWatch();
     Cloud.busy = true; Cloud.error = ''; QQ.refresh();
     try{
-      const snap = await getDoc(Cloud.ref());
+      const [snap, psnap] = await Promise.all([getDoc(Cloud.ref()), getDoc(Cloud.pref()).catch(()=>null)]);
       if(snap.exists() && snap.data().data){
         const remote = JSON.parse(snap.data().data);
+        if(psnap && psnap.exists() && psnap.data().data){ const pv = JSON.parse(psnap.data().data); remote.events = pv.events || []; remote.ledger = pv.ledger || []; }
         const merged = QQ.merge(QQ.get(), remote);
         if(merged !== QQ.get()) QQ.replace(merged);
       }
@@ -1351,7 +1588,9 @@ const Cloud = {
     const d = QQ.get();
     if(!Cloud.user || Cloud.watcher || !d.profile) return;
     try{
-      await setDoc(Cloud.ref(), { data: JSON.stringify(d), updatedAt: d.updatedAt || Date.now(), email: Cloud.user.email || '' });
+      const { events, ledger, ...pub } = d;
+      await setDoc(Cloud.ref(), { data: JSON.stringify(pub), updatedAt: d.updatedAt || Date.now(), email: Cloud.user.email || '' });
+      await setDoc(Cloud.pref(), { data: JSON.stringify({ events: events || [], ledger: ledger || [] }), updatedAt: d.updatedAt || Date.now() });
       Cloud.lastSync = new Date(); Cloud.error = '';
     }catch(e){ Cloud.error = errText(e); if(inside) throw e; }
     if(!inside) QQ.refresh();
