@@ -101,6 +101,33 @@ input,select,textarea{font:inherit;color:inherit}
 .mood.on{opacity:1;background:#fff3ec;transform:scale(1.1)}
 textarea{width:100%;border:2px solid var(--line);border-radius:14px;padding:10px;margin-top:10px;resize:none;background:#fffdfb;outline:none}
 
+/* 語音日記 */
+.voice-card{background:#fffaf6;border:1px solid #f2ded1}
+.voice-card p{margin:6px 0;font-size:14px;line-height:1.5;color:#735b50}
+.voice-card textarea{margin-top:4px;background:#fff}
+.voice-card button:focus-visible,.voice-card textarea:focus,.voice-card input:focus,.voice-card select:focus,.voice-card summary:focus-visible{outline:2px solid #9c4e37;outline-offset:2px}
+.voice-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.voice-actions .btn{flex:1;width:auto;margin:0;min-height:44px}
+.voice-card .btn{background:#a75038;color:#fff}
+.voice-card .btn.ghost{background:#f9e7dc;color:#843e2b}
+.voice-card button:disabled{opacity:.55;cursor:default}
+.voice-card .voice-help{font-size:13px;margin-top:10px}
+.voice-review{margin-top:12px;padding:12px;border-radius:16px;background:#fff;border:1px solid var(--line);scroll-margin-top:12px}
+.voice-review h4{margin:0 0 10px;font-size:15px}
+.voice-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.voice-fields .f{margin:0}
+.voice-fields .voice-wide{grid-column:1/-1}
+.voice-fields input,.voice-fields select{min-width:0;font-size:16px;min-height:44px;margin-top:4px}
+.voice-review .voice-note{margin:10px 0 0}
+.voice-review ul{margin:0 0 10px;padding-left:20px;font-size:13px;line-height:1.5;color:#843e2b}
+.voice-history{margin-top:12px;border-top:1px solid var(--line)}
+.voice-history summary{padding:12px 0 4px;cursor:pointer;font-weight:700;font-size:14px}
+.voice-history li{display:block}
+.voice-entry{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:5px}
+.voice-entry button{min-height:44px;min-width:44px;color:#843e2b;font-weight:700;text-decoration:underline}
+.voice-note-text{white-space:pre-wrap;overflow-wrap:anywhere}
+.voice-card [hidden]{display:none}
+
 /* weight tab */
 .big{display:grid;grid-template-columns:1fr 1fr 1fr;text-align:center;gap:6px}
 .big b{display:block;font-size:24px}
@@ -573,6 +600,914 @@ function today(){ const k=dkey(); if(!S.days[k]) S.days[k]={water:0,habits:{}}; 
 function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
 function dateLabel(k){ const d=parseKey(k); return (d.getMonth()+1)+'/'+d.getDate(); }
 
+/* ========== 語音日記 ========== */
+const SPOKEN_RECORDS_KEY = 'qingqing-diary-private-spoken-v1';
+const SPOKEN_TEXT_LIMIT = 1200;
+const spokenDrafts = {
+  diary:{text:'', review:null, status:''},
+  plan:{text:'', review:null, status:''},
+  money:{text:'', review:null, status:''},
+};
+const spokenDraft = ()=>spokenDrafts[section];
+let spokenMic = null;
+const SPOKEN_EXAMPLES = {
+  diary:'今天體重 64.2 公斤，腰圍 78 公分，喝水 5 杯，晚餐吃了魚。',
+  plan:'明天下午三點提醒我拿包裹。',
+  money:'今天午餐花了一百二十元。',
+};
+
+function spokenRecords(){
+  try { return cleanSpokenRecords(JSON.parse(localStorage.getItem(SPOKEN_RECORDS_KEY))); }
+  catch(_) { return {}; }
+}
+
+function cleanSpokenRecords(source){
+  const records = {};
+  for(const [date, row] of Object.entries(source || {})){
+    if(!validSpokenDate(date) || !row || typeof row !== 'object') continue;
+    const waist = typeof row.waist === 'number' && row.waist >= 20 && row.waist <= 250 ? row.waist : null;
+    const note = typeof row.note === 'string' ? row.note.trim() : '';
+    if(waist !== null || note) records[date] = {waist, note};
+  }
+  return records;
+}
+
+function validSpokenDate(date){
+  return validSpokenDiaryDate(date) && date <= dkey();
+}
+
+function spokenMicClass(){
+  return window.isSecureContext && (window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+function renderSpokenHistory(records){
+  return records.length ? `<details class="voice-history" ${spokenDraft().review?.editing ? 'open' : ''}>
+      <summary>腰圍與補充筆記（${records.length} 天）</summary>
+      <ul class="hist">${records.map(([date, row])=>`<li>
+        <div class="voice-entry"><b>${date}</b>
+          ${row.waist != null ? `<span>腰圍 ${fmt(row.waist)} cm</span>` : ''}
+          <button type="button" data-act="voice-history" data-k="${date}" aria-label="修改 ${date} 的腰圍與補充筆記">修改</button>
+        </div>
+        ${row.note ? `<p class="voice-note-text">${esc(row.note)}</p>` : ''}
+      </li>`).join('')}</ul>
+    </details>` : '';
+}
+
+function renderSpokenComposer(){
+  const {text, status} = spokenDraft();
+  const inDiary = section === 'diary';
+  const records = inDiary ? Object.entries(spokenRecords()).sort(([a],[b])=>b.localeCompare(a)) : [];
+  const todayWaist = records.find(([date])=>date===dkey())?.[1].waist;
+  const canSpeak = spokenMicClass();
+  return `<section class="card voice-card" aria-labelledby="voiceHeading">
+    <h3 id="voiceHeading">🎙️ 說一句，記下來
+      ${todayWaist != null ? `<small>今天腰圍 ${fmt(todayWaist)} cm</small>` : ''}
+    </h3>
+    <p id="voiceExample">例如「${SPOKEN_EXAMPLES[section]}」</p>
+    <textarea id="voiceText" rows="2" maxlength="${SPOKEN_TEXT_LIMIT}" aria-label="說出或輸入要記的內容" aria-describedby="voiceExample voiceHelp"${spokenMic ? ' disabled' : ''}>${esc(text)}</textarea>
+    <div class="voice-actions">
+      ${canSpeak ? `<button type="button" class="btn ghost" id="voiceMic" data-act="voice-mic">${spokenMic ? '停止說話' : '🎙️ 開始說話'}</button>` : ''}
+      <button type="button" class="btn" id="voiceReviewButton" data-act="voice-review"${spokenMic ? ' disabled' : ''}>整理這段話</button>
+    </div>
+    <p id="voiceStatus" role="status" ${status ? '' : 'hidden'}>${esc(status)}</p>
+    <div id="voiceResult">${renderSpokenReview()}</div>
+    <p id="voiceHelp" class="voice-help">${canSpeak ? '語音由瀏覽器轉成文字，可能使用線上辨識。也可以用手機鍵盤的麥克風。' : '點文字框後，可以用手機鍵盤的麥克風聽寫。'}
+      ${inDiary ? '腰圍與補充筆記留在這台裝置，可在設定下載備份。' : ''}</p>
+    ${renderSpokenHistory(records)}
+  </section>`;
+}
+
+function renderSpokenDiaryFields({date, weight, waist, water, note, editing}){
+  return `<div class="voice-fields">
+      <label class="f voice-wide">記錄日期<input name="date" type="date" max="${dkey()}" value="${esc(date)}" ${editing ? 'readonly' : 'required'}></label>
+      ${editing ? '' : `<label class="f">體重（公斤）<input name="weight" type="number" inputmode="decimal" step="0.1" min="25.1" max="299.9" value="${esc(weight)}"></label>`}
+      <label class="f">腰圍（公分）<input name="waist" type="number" inputmode="decimal" step="0.1" min="20" max="250" value="${esc(waist)}"></label>
+      ${editing ? '' : `<label class="f">全天喝水（杯）<input name="water" type="number" inputmode="numeric" step="1" min="0" max="30" value="${esc(water)}"></label>`}
+    </div>
+    <label class="f voice-note">補充筆記<textarea name="note" rows="2"${editing ? '' : ` maxlength="${SPOKEN_TEXT_LIMIT}"`}>${esc(note)}</textarea></label>
+    <p>${editing ? '清空欄位再儲存，即可移除該欄紀錄。' : '已填的數字會更新當天紀錄。補充筆記會接在同日的補充筆記後面。'}</p>`;
+}
+
+function spokenOptions(list, selected){
+  return list.map(([value,label])=>`<option value="${esc(value)}"${selected === value ? ' selected' : ''}>${esc(label)}</option>`).join('');
+}
+
+function renderSpokenPlanFields({title, date, time, rep}){
+  return `<div class="voice-fields">
+      <label class="f voice-wide">要做什麼<input name="title" value="${esc(title)}" maxlength="60" required></label>
+      <label class="f voice-wide">日期<input name="date" type="date" value="${esc(date)}" required></label>
+      <label class="f">時間<input name="time" type="time" value="${esc(time)}"></label>
+      <label class="f">重複<select name="rep" required>${spokenOptions([['','請選擇'],...Object.entries(REP)],rep)}</select></label>
+    </div>
+    <p>時間留空會顯示為全天。想讓手機響鈴，可在儲存後按該筆提醒的 📅 加到手機行事曆，全天提醒預設為上午 9 點。</p>`;
+}
+
+function spokenLedgerCategories(type, selected){
+  const choices = (CATS[type] || []).map(([label, emoji])=>[label, emoji+' '+label]);
+  return spokenOptions([['','請選擇'],...choices], selected);
+}
+
+function renderSpokenMoneyFields({type, amount, cat, date, note}){
+  return `<div class="voice-fields">
+      <label class="f">類型<select name="type" required>${spokenOptions([['','請選擇'],['out','支出'],['in','收入']],type)}</select></label>
+      <label class="f">金額（NT$）<input name="amount" type="number" inputmode="decimal" min="0.01" max="100000000" step="0.01" value="${esc(amount)}" required></label>
+      <label class="f voice-wide">日期<input name="date" type="date" value="${esc(date)}" required></label>
+      <label class="f voice-wide">分類<select name="cat" required>${spokenLedgerCategories(type, cat)}</select></label>
+      <label class="f voice-wide">備註<input name="note" maxlength="40" value="${esc(note)}"></label>
+    </div>`;
+}
+
+function renderSpokenReview(){
+  const review = spokenDraft().review;
+  if(!review) return '';
+  const {warnings, editing} = review;
+  const fields = section==='plan' ? renderSpokenPlanFields(review)
+    : section==='money' ? renderSpokenMoneyFields(review) : renderSpokenDiaryFields(review);
+  return `<form id="voiceForm" class="voice-review" aria-labelledby="voiceReviewHeading">
+    <h4 id="voiceReviewHeading" tabindex="-1">${editing ? '修改腰圍與補充筆記' : '確認整理結果'}</h4>
+    ${warnings.length ? `<ul>${warnings.map(warning=>`<li>${esc(warning)}</li>`).join('')}</ul>` : ''}
+    ${fields}
+    <div class="voice-actions">
+      <button type="button" class="btn ghost" data-act="voice-back">取消整理</button>
+      <button type="submit" class="btn">確認儲存</button>
+    </div>
+  </form>`;
+}
+
+function updateSpokenComposer(){
+  const field = $('#voiceText');
+  if(!field) return;
+  if(field.value !== spokenDraft().text) field.value = spokenDraft().text;
+  field.disabled = !!spokenMic;
+  const button = $('#voiceMic');
+  if(button) button.textContent = spokenMic ? '停止說話' : '🎙️ 開始說話';
+  $('#voiceReviewButton').disabled = !!spokenMic;
+  const status = $('#voiceStatus');
+  status.hidden = !spokenDraft().status;
+  status.textContent = spokenDraft().status;
+  $('#voiceResult').innerHTML = renderSpokenReview();
+}
+
+function parseSpokenDiary(text, defaultDate, todayDate = defaultDate) {
+  const source = text.trim();
+  const normalized = source.replace(/[！-～]/g, char => String.fromCharCode(char.charCodeAt(0) - 0xFEE0));
+  const empty = { date: null, weight: null, waist: null, water: null, note: source, warnings: [] };
+  const dateMentions = [];
+
+  const dateDigits = '[0-9零〇○一二兩两三四五六七八九十]';
+  const datePattern = new RegExp(`(?:\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2}|(?:${dateDigits}{4}年\\s*)?${dateDigits}{1,4}月\\s*${dateDigits}{1,4}[日號]?|\\d{1,2}\\/\\d{1,2})(?!\\d)|前天|前日|前晚|昨天|昨日|昨晚|昨夜|昨早|今天|今日|今早|今晚|明天|明日|明早|明晚|後天`, 'g');
+  const unspecifiedDate = /(?:上|下|這|本)?(?:禮拜|星期|週|周)[日天一二三四五六1-7]|前幾天|那天|前一[天晚]|隔天/g;
+  for (const match of normalized.matchAll(unspecifiedDate)) {
+    const after = normalized.slice(match.index + match[0].length);
+    if (/^\s*(?:(?:的|早上|晚上|我)\s*)*(?:體重|腰圍|喝水|喝了|量了|量到|\d)/.test(after)) {
+      return { ...empty, warnings: ['請在輸入內容寫明這筆記錄的日期。'] };
+    }
+  }
+  for (const match of normalized.matchAll(datePattern)) {
+    const before = normalized.slice(0, match.index);
+    const after = normalized.slice(match.index + match[0].length);
+    if (/^[0-9]/.test(match[0]) && (/[\d./-]$/.test(before) || /^(?:\/\d|[-.]\d)/.test(after))) continue;
+    if (/(?:比|較|跟|和|與|從|到|自|距|離)\s*$/.test(before) || /^\s*(?:相比|比起|一樣)/.test(after)) continue;
+    if (/^7\/11$/.test(match[0]) && /(?:去|在|進|逛)\s*$/.test(before)) continue;
+    if (/^(?:昨晚|昨夜)$/.test(match[0]) && /^\s*(?:我\s*)?(?:睡|有睡|沒睡|失眠|熬夜|醒|做夢)/.test(after)) continue;
+    const date = spokenDiaryDate(match[0], todayDate);
+    dateMentions.push({ date, start: match.index, end: match.index + match[0].length });
+  }
+
+  const dates = [...new Set(dateMentions.map(mention => mention.date))];
+  const date = dates.length ? dates[0] : defaultDate;
+  if (dates.length > 1) return { ...empty, warnings: ['內容有不同日期，請分開記錄。'] };
+  if (!validSpokenDiaryDate(date) || date > todayDate) {
+    return { ...empty, warnings: ['請確認記錄日期，並選擇今天或之前的日期。'] };
+  }
+
+  const withDatesMasked = maskSpokenDiarySpans(normalized, dateMentions);
+  const clauses = [...withDatesMasked.matchAll(/(?:\d[,，.]\d|[^、，,。！？!?；;\n.])+/g)];
+  const number = '[0-9零〇○一二兩两三四五六七八九十百]{1,8}(?:[.點点][0-9零〇○一二兩两三四五六七八九]{1,6})?';
+  const weightUnit = '公斤|千克|仟克|kg';
+  const waistUnit = '公分|厘米|公釐|毫米|cm|mm';
+  const pause = '\\s*(?:[:=]\\s*)?';
+  const link = '(?:(?:目前|現在|剛剛|剛才|剛|是|為|大約|大概|約|量到|量起來|量了|量出來|量|測得|測到|有|到)\\s*)*';
+  const specs = [
+    {
+      key: 'weight', label: '體重', min: 25, max: 300,
+      patterns: [
+        new RegExp(`體重${pause}${link}(${number})\\s*(${weightUnit})?`, 'gi'),
+        new RegExp(`(?:秤重|秤起來|秤了|秤到|量到|量了|量起來|我重)${pause}${link}(${number})\\s*(${weightUnit})`, 'gi'),
+        new RegExp(`^\\s*(?:我\\s*)?(?:(?:早上|早晨|一早|起床後|睡前|剛剛|剛才|剛)\\s*)?(${number})\\s*(${weightUnit})\\s*$`, 'i')
+      ]
+    },
+    {
+      key: 'waist', label: '腰圍', min: 20, max: 250,
+      patterns: [
+        new RegExp(`(?:腰圍|腰部(?:圍度|周長|週長)|腰的圍度)${pause}${link}(${number})\\s*(${waistUnit})?`, 'gi')
+      ]
+    },
+    {
+      key: 'water', label: '喝水', min: 0, max: 30,
+      patterns: [
+        new RegExp(`(?:喝水|飲水|白開水|開水|水量)${pause}(?:(?:喝了|喝|總共|一共|共|到|了)\\s*)*(${number})\\s*(杯)(?:水)?`, 'gi'),
+        new RegExp(`(?:^|\\s)水${pause}(${number})\\s*(杯)`, 'gi'),
+        new RegExp(`(?:已喝|喝了|喝)${pause}(?:(?:總共|一共|共)\\s*)*(${number})\\s*(杯)\\s*(?:白開水|開水|水)`, 'gi')
+      ]
+    }
+  ];
+  const draft = { ...empty, date, note: '' };
+  const remove = [];
+
+  for (const spec of specs) {
+    const candidates = [];
+    let unclear = false;
+    for (const { 0: clause, index } of clauses) {
+      const matches = spec.patterns.flatMap(pattern => pattern.global ? [...clause.matchAll(pattern)] : [clause.match(pattern)].filter(Boolean));
+      for (const match of matches) {
+        const start = index + match.index;
+        const end = start + match[0].length;
+        if (candidates.some(candidate => candidate.start === start && candidate.end === end)) continue;
+        const before = clause.slice(0, match.index);
+        const after = clause.slice(match.index + match[0].length);
+        if (spec.key === 'weight' && /(?:腰圍|腰部|行李|手提包|嬰兒|米|狗|貓|小孩)\s*$/.test(before)) continue;
+
+        const value = spokenDiaryNumber(match[1]);
+        // Ranges, estimates, and intentions belong in the user's note.
+        const uncertainBefore = /(?:目標|希望|想要?|打算|預計|計畫|如果|還差|只差|差|沒有|沒|未|不要|別|並非|不是|不確定|可能|大約|大概|約|多|少)\s*(?:(?:要|再|量|量到|量了|的|記錄|記|是|為|達到)\s*)*$/.test(before);
+        const uncertainInside = /(?:大約|大概|約)/.test(match[0]);
+        const uncertainAfter = /^\s*(?:[~—-]|(?:到|至|或|跟)\s*[0-9零一二兩三四五六七八九十百]|[.,]\s*\d|[多少](?=\s*$|\s*(?:杯|公斤|公分|了|一[點公斤公分]|\d))|左右|上下|出頭|不到|以上|以下|幾|半|嗎|嘛)/.test(after);
+        const question = normalized[index + clause.length] === '?';
+        const invalidUnit = match[2] == null && /^\s*(?:斤|磅|公斤|千克|仟克|公克|克|公分|厘米|公釐|毫米|英[吋寸]|吋|寸|公尺|米|毫升|公升|升|%|杯|(?:lbs?|kg|g|oz|cm|mm|m|cc|ml|l)\b)/i.test(after);
+        const otherBeverage = spec.key === 'water' && /^\s*(?:茶|咖啡|奶|汽水|果汁|酒|飲料)/.test(after);
+        const badRange = value === null || value < spec.min || value > spec.max || (spec.key === 'weight' && (value === spec.min || value === spec.max));
+        const unsupportedWaistUnit = spec.key === 'waist' && /^(?:毫米|公釐|mm)$/i.test(match[2] || '');
+        if (uncertainBefore || uncertainInside || uncertainAfter || question || invalidUnit || otherBeverage || badRange || unsupportedWaistUnit || (spec.key === 'water' && !Number.isInteger(value))) {
+          unclear = true;
+          continue;
+        }
+        candidates.push({ start, end, value: Math.round(value * 10) / 10 });
+      }
+
+      const fullMetricLabel = spec.key === 'weight' ? /體重/ : spec.key === 'waist' ? /腰圍|腰部(?:圍度|周長|週長)/ : /喝水|飲水|白開水/;
+      if (!matches.length && fullMetricLabel.test(clause) && /(?:多|少|增加|減少|減了|變重|變輕|變細|變粗|[0-9一二兩三四五六七八九十百]+\s*(?:斤|磅|吋|公斤|公分|杯|毫升|CC|ML))/i.test(clause)) {
+        unclear = true;
+      }
+    }
+
+    const values = [...new Set(candidates.map(candidate => candidate.value))];
+    if (values.length > 1) {
+      draft.warnings.push(`${spec.label}出現不同數字，請確認要記哪一個。`);
+    } else if (unclear) {
+      draft.warnings.push(`${spec.label}的說法需要確認，先放在備註。`);
+    } else if (values.length) {
+      draft[spec.key] = values[0];
+      remove.push(...candidates);
+    }
+  }
+
+  if (!remove.length) {
+    draft.note = maskSpokenDiarySpans(source, dateMentions).trim() ? source : '';
+    return draft;
+  }
+
+  const rest = maskSpokenDiarySpans(source, [...remove, ...dateMentions]);
+  let previousEnd = null;
+  for (const { 0: clause, index } of clauses) {
+    const remainder = rest.slice(index, index + clause.length)
+      .replace(/\s{2,}/g, ' ').trim()
+      .replace(/^(?:我(?:的)?\s*)?(?:(?:剛剛|剛才|剛|早上|晚上|起床後|睡前)\s*)?(?:(?:量了|量到|測了|記一下|順便記一下|記錄|日期是)\s*)?(?:的\s*)?$/, '')
+      .replace(/^(?:還有|另外|以及|再加上)\s*(?=\S)/, '')
+      .replace(/\s*(?:還有|另外|以及|跟|和)\s*$/, '');
+    if (!remainder) continue;
+    if (previousEnd !== null) {
+      const separator = source.slice(previousEnd, index);
+      draft.note += /^[、，,。！？!?；;\n.]+$/.test(separator) ? separator : '，';
+    }
+    draft.note += remainder;
+    previousEnd = index + clause.length;
+  }
+  const ending = previousEnd === null ? '' : source.slice(previousEnd);
+  if (/^[。！？!?.…]+$/.test(ending)) draft.note += ending;
+  return draft;
+}
+
+function validSpokenDiaryDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false;
+  const date = new Date(value + 'T00:00:00Z');
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function spokenDiaryDate(value, todayDate) {
+  if (/^(?:明|後天)/.test(value)) return null;
+  if (/^(?:今|昨|前)/.test(value)) {
+    if (!validSpokenDiaryDate(todayDate)) return null;
+    const delta = value.startsWith('前') ? -2 : value.startsWith('昨') ? -1 : 0;
+    const date = new Date(todayDate + 'T00:00:00Z');
+    date.setUTCDate(date.getUTCDate() + delta);
+    return date.toISOString().slice(0, 10);
+  }
+  const parts = (value.match(/[0-9零〇○一二兩两三四五六七八九十]+/g) || []).map(spokenDiaryNumber);
+  if (parts.some(part => part === null)) return null;
+  if (parts.length === 2) parts.unshift(todayDate.slice(0, 4));
+  return parts.map((part, index) => index ? String(part).padStart(2, '0') : part).join('-');
+}
+
+function maskSpokenDiarySpans(text, spans) {
+  const chars = text.split('');
+  for (const { start, end } of spans) chars.fill(' ', start, end);
+  return chars.join('');
+}
+
+function spokenDiaryNumber(text) {
+  const digits = '零一二三四五六七八九';
+  const [integer, fraction] = text.replace(/[〇○]/g, '零').replace(/[兩两]/g, '二')
+    .replace(/[零一二三四五六七八九]/g, char => digits.indexOf(char))
+    .split(/[.點点]/);
+  let whole;
+  if (/^\d+$/.test(integer)) {
+    whole = Number(integer);
+  } else {
+    const match = integer.match(/^(?:(\d)百)?(?:(\d?)十)?(?:(0?\d))?$/);
+    if (!match) return null;
+    const [, hundreds, tens, single] = match;
+    whole = (hundreds ? Number(hundreds) * 100 : 0)
+      + (tens === undefined ? 0 : Number(tens || '1') * 10)
+      + Number(single || '0');
+    // In speech, "一百五" can mean 150. Require an explicit tens value.
+    if (hundreds && tens === undefined && single && single.length === 1 && single !== '0') return null;
+  }
+  return fraction ? Number(`${whole}.${fraction}`) : whole;
+}
+
+/* 提醒語句整理 */
+function parseSpokenReminder(text, todayDate) {
+  const raw = text.trim();
+  const noteAt = raw.match(/[，,；;。\n]\s*備註\s*(?:是|為|[：:])?\s*/);
+  const body = noteAt ? raw.slice(0, noteAt.index) : raw;
+  const extra = noteAt ? raw.slice(noteAt.index + noteAt[0].length).trim() : '';
+  const normalized = body.replace(/[！-～]/g, char => String.fromCharCode(char.charCodeAt(0) - 0xFEE0));
+  const warnings = [];
+  const spans = [];
+  const number = '[0-9零〇○一二兩两三四五六七八九十百]{1,4}';
+  const weekdays = '日天一二三四五六1-7';
+  const dayIndex = char => /[1-7]/.test(char) ? Number(char) % 7 : '日一二三四五六'.indexOf(char === '天' ? '日' : char);
+  const span = match => ({ start: match.index, end: match.index + match[0].length });
+
+  // The existing reminder can repeat on one weekday or one day of the month.
+  const unsupported = new RegExp(`(?:每週|每周|每個?星期|每個?禮拜|逢週|逢周)\\s*[${weekdays}]\\s*(?:[、,與和及到至-]\\s*(?:(?:每)?(?:週|周|星期|禮拜)\\s*)?[${weekdays}])+|(?:週|周|星期|禮拜)[${weekdays}]\\s*(?:到|至|-)\\s*(?:(?:週|周|星期|禮拜)\\s*)?[${weekdays}]|每個?工作日|工作日|每個?平日|平日|每個?[週周]末|星期六日|每隔${number}天|每${number}天|隔週|隔周|每兩週|每兩周`, 'g');
+  const unsupportedMatches = [...normalized.matchAll(unsupported)];
+  spans.push(...unsupportedMatches.map(span));
+  const recurrenceText = maskSpokenDiarySpans(normalized, spans);
+  const recurPatterns = [
+    { rep: 'daily', pattern: /每天|每日|天天/g },
+    { rep: 'weekly', pattern: new RegExp(`(?:每週|每周|每個?星期|每個?禮拜|逢週|逢周|每逢星期|每逢禮拜)(?:\\s*([${weekdays}])(?!次|天|個)|\\s*一次)?`, 'g') },
+    { rep: 'monthly', pattern: new RegExp(`(?:每個?月)(?:\\s*(${number})\\s*[日號]|\\s*一次)?`, 'g') }
+  ];
+  const recurrences = recurPatterns.flatMap(({ rep, pattern }) =>
+    [...recurrenceText.matchAll(pattern)].map(match => ({ rep, day: match[1] || '', ...span(match) })));
+  spans.push(...recurrences);
+  const recurrenceKeys = [...new Set(recurrences.map(item => item.rep + ':' + item.day))];
+  const recurrence = recurrences[0];
+  let rep = recurrence?.rep || 'none';
+  if (unsupportedMatches.length || recurrenceKeys.length > 1) {
+    rep = '';
+    warnings.push('重複頻率需要確認。目前每筆提醒可以選每天、每週同一天或每月同一天。');
+  }
+
+  const dateText = maskSpokenDiarySpans(normalized, spans);
+  const invalidDateWords = /下個月|下個禮拜|下個星期|下週|下周|下星期|下禮拜|週末|周末|過幾天|幾天後|下次/g;
+  const datePattern = new RegExp(`(?:(?:\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2}|\\d{1,2}\\/\\d{1,2})(?![0-9])|(?:${number}年\\s*)?${number}月\\s*${number}\\s*(?:[日號]|(?![日號0-9])))|(?:${number})\\s*天後|(?:(?:下一個|下個|下|這個|這|本|上個|上)\\s*)?(?:星期|禮拜|週|周)\\s*[${weekdays}]|後天|大後天|明天|明日|明早|明晚|隔天|今天|今日|今早|今晚|昨天|昨日|前天`, 'g');
+  const dateMatches = [...dateText.matchAll(datePattern)];
+  const unresolved = [...maskSpokenDiarySpans(dateText, dateMatches.map(span)).matchAll(invalidDateWords)]
+    .filter(match => !dateMatches.length || /(?:或|和|跟|以及|到|至)\s*$/.test(dateText.slice(0, match.index)));
+  const dates = dateMatches.map(match => parseSpokenReminderDate(match[0], todayDate, dayIndex));
+  spans.push(...dateMatches.map(span), ...unresolved.map(span));
+  const distinctDates = [...new Set(dates)];
+  const dateConflict = distinctDates.length > 1;
+  const badDate = unresolved.length > 0 || dates.some(value => !value) || !validSpokenDiaryDate(todayDate);
+  let date = badDate || dateConflict ? '' : distinctDates[0] || todayDate;
+  if (date && rep === 'weekly' && recurrence?.day) {
+    date = nextSpokenReminderWeekday(date, dayIndex(recurrence.day));
+  }
+  if (date && rep === 'monthly' && recurrence?.day) {
+    const day = spokenDiaryNumber(recurrence.day);
+    date = nextSpokenReminderMonthDay(date, day);
+  }
+  if (date && recurrence && !recurrence.day && (rep === 'weekly' || rep === 'monthly') && !dates.length) {
+    date = '';
+    warnings.push(rep === 'weekly' ? '請補上每週哪一天。' : '請補上每月幾號。');
+  } else if (!date || date < todayDate) {
+    date = '';
+    warnings.push(dateConflict ? '內容有不同日期，請確認提醒開始的日子。' : '請確認提醒日期，並選擇今天或之後的日子。');
+  }
+
+  // Leave compound phrases (明早、今晚) visible to the time matcher for AM/PM.
+  const timeText = maskSpokenDiarySpans(normalized, spans.filter(({ start, end }) =>
+    !/^(?:今早|明早|今晚|明晚)$/.test(normalized.slice(start, end))));
+  const periods = '凌晨|清晨|早上|早晨|上午|今早|明早|中午|午後|下午|傍晚|黃昏|晚上|夜間|今晚|明晚|早|晚|[ap]\\.?m\\.?';
+  const timePattern = new RegExp(`(?:(${periods})\\s*)?(${number})\\s*(?::\\s*(${number})|[點点時时](?:鐘)?\\s*(?:(半)|([一二三123])刻|(${number})\\s*分|([0-9]{2}|[一二三四五]?十[一二三四五六七八九]?)\\s*)?)(?:\\s*([ap]\\.?m\\.?)(?![a-z]))?`, 'gi');
+  const times = [];
+  for (const match of timeText.matchAll(timePattern)) {
+    const { start, end } = span(match);
+    if (/\d$/.test(timeText.slice(0, start)) || /^(?:[0-9:]|小時|鐘頭)/.test(timeText.slice(end))) continue;
+    const before = timeText.slice(0, start).match(/(?:大約|約|大概|左右|差不多|將近|快)\s*$/);
+    const after = timeText.slice(end).match(/^\s*(?:左右|前後|多|以前|以後|之前|之後|到|至|前(?!往)|後)/);
+    spans.push({ start: start - (before?.[0].length || 0), end: end + (after?.[0].length || 0) });
+    const [, period, hour, colon, half, quarters, minutes, unmarked, suffix] = match;
+    const h = spokenDiaryNumber(hour);
+    const m = half ? 30 : quarters ? spokenDiaryNumber(quarters) * 15 : spokenDiaryNumber(colon || minutes || unmarked || '0');
+    const resolved = before || after || (period && suffix) ? '' : spokenReminderTime(h, m, period || suffix, Boolean(colon));
+    times.push(resolved);
+  }
+
+  const allDay = [...timeText.matchAll(/全天|整天/g)];
+  spans.push(...allDay.map(span));
+  const distinctTimes = [...new Set(times)];
+  let time = distinctTimes.length === 1 && !allDay.length ? distinctTimes[0] : '';
+  if (distinctTimes.length > 1 || (allDay.length && times.length)) {
+    time = '';
+    warnings.push('內容有不同時間，請確認提醒時間。');
+  } else if (!time && !allDay.length) {
+    warnings.push(times.length ? '請確認時間，像是「早上八點」或「20:00」。' : '請填提醒時間，全天提醒可以留空。');
+  }
+
+  const filler = /^(?:[：:\s、，,。！？!?；;]|請(?:在|從)?|幫我(?:在|從)?|麻煩(?:在|從)?|記得|提醒(?:一下)?我|提醒一下|叫我|通知我|加(?:一個)?提醒|新增(?:一個)?提醒|(?:在|從|開始|和|跟|或|以及|白天|早上|中午|下午|晚上)(?=\s))+/;
+  const title = maskSpokenDiarySpans(body, spans).replace(filler, '')
+    .replace(/[：:\s、，,。！？!?；;]+$/g, '').replace(/\s{2,}/g, ' ').trim();
+  if (!title) warnings.push('請補上要提醒的事情。');
+  if (title.length > 60) warnings.push('提醒事項最多 60 字，請縮短一點。');
+  return { title, date, time, rep, extra, warnings };
+}
+
+function spokenReminderUTC(key) {
+  return new Date(key + 'T00:00:00Z');
+}
+
+function shiftSpokenReminderDate(key, delta) {
+  if (!validSpokenDiaryDate(key)) return '';
+  const date = spokenReminderUTC(key);
+  date.setUTCDate(date.getUTCDate() + delta);
+  return date.toISOString().slice(0, 10);
+}
+
+function nextSpokenReminderWeekday(key, weekday) {
+  if (weekday < 0 || !validSpokenDiaryDate(key)) return '';
+  return shiftSpokenReminderDate(key, (weekday - spokenReminderUTC(key).getUTCDay() + 7) % 7);
+}
+
+function nextSpokenReminderMonthDay(key, day) {
+  if (!Number.isInteger(day) || day < 1 || day > 31 || !validSpokenDiaryDate(key)) return '';
+  const month = spokenReminderUTC(key.slice(0, 7) + '-01');
+  for (let i = 0; i < 3; i++) {
+    const candidate = month.toISOString().slice(0, 7) + '-' + String(day).padStart(2, '0');
+    if (validSpokenDiaryDate(candidate) && candidate >= key) return candidate;
+    month.setUTCMonth(month.getUTCMonth() + 1);
+  }
+  return '';
+}
+
+function parseSpokenReminderDate(text, todayDate, dayIndex) {
+  if (!validSpokenDiaryDate(todayDate)) return '';
+  const compact = text.replace(/\s/g, '');
+  if (/^(?:今|明|後|大後|隔天|昨|前天)/.test(compact)) {
+    const delta = compact.startsWith('明') || compact === '隔天' ? 1
+      : compact.startsWith('後') ? 2 : compact.startsWith('大後') ? 3
+      : compact.startsWith('昨') ? -1 : compact.startsWith('前') ? -2 : 0;
+    return shiftSpokenReminderDate(todayDate, delta);
+  }
+  const digits = /[0-9零〇○一二兩两三四五六七八九十百]+/g;
+  if (compact.endsWith('天後')) {
+    const count = spokenDiaryNumber(compact.slice(0, -2));
+    return count === null || count > 366 ? '' : shiftSpokenReminderDate(todayDate, count);
+  }
+  if (/星期|禮拜|週|周/.test(compact)) {
+    const weekday = dayIndex(compact[compact.length - 1]);
+    if (!/^[下這本上]/.test(compact)) return nextSpokenReminderWeekday(todayDate, weekday);
+    const date = spokenReminderUTC(todayDate);
+    const mondayOffset = (date.getUTCDay() + 6) % 7;
+    const week = compact.startsWith('下') ? 7 : compact.startsWith('上') ? -7 : 0;
+    return shiftSpokenReminderDate(todayDate, week - mondayOffset + (weekday + 6) % 7);
+  }
+  const parts = [...(compact.match(digits) || [])].map(spokenDiaryNumber);
+  if ((parts.length !== 2 && parts.length !== 3) || parts.some(value => value === null)) return '';
+  const year = parts.length === 3 ? parts.shift() : Number(todayDate.slice(0, 4));
+  const suffix = '-' + parts.map(part => String(part).padStart(2, '0')).join('-');
+  const candidate = year + suffix;
+  if (validSpokenDiaryDate(candidate) && candidate >= todayDate) return candidate;
+  if (/年|^\d{4}[-/.]/.test(compact)) return '';
+  const next = year + 1 + suffix;
+  return validSpokenDiaryDate(next) ? next : '';
+}
+
+function spokenReminderTime(hour, minute, period, hasColon) {
+  if (hour === null || minute === null || hour > 23 || minute > 59) return '';
+  const normalized = (period || '').replace(/\./g, '').toLowerCase();
+  let h = hour;
+  if (/^(?:am|凌晨|清晨|早上|早晨|上午|今早|明早|早)$/.test(normalized)) {
+    if (h > 12) return '';
+    if (h === 12) {
+      if (normalized === 'am' || normalized === '凌晨') h = 0;
+      else return '';
+    }
+  } else if (/^(?:pm|午後|下午|傍晚|黃昏|晚上|夜間|今晚|明晚|晚)$/.test(normalized)) {
+    if (h === 0) return '';
+    if (h < 12) h += 12;
+  } else if (normalized === '中午') {
+    if (h === 1 || h === 2) h += 12;
+    else if (h < 11 || h > 14) return '';
+  } else if (!hasColon && h >= 1 && h <= 12) {
+    return '';
+  }
+  return String(h).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
+}
+
+/* 記帳語句整理 */
+function parseSpokenLedger(text, todayDate) {
+  const source = String(text || '').trim();
+  const phrase = source.replace(/[！-～]/g, char => String.fromCharCode(char.charCodeAt(0) - 0xFEE0));
+  const warnings = [];
+  const dateSpans = [];
+  const dayNumber = '[0-9零〇○一二兩两三四五六七八九十]';
+  const datePattern = new RegExp(
+    `(?:[0-9]{4}[-/.][0-9]{1,2}[-/.][0-9]{1,2}|(?:${dayNumber}{4}年\\s*)?${dayNumber}{1,4}月\\s*${dayNumber}{1,4}(?:日|號)?|[0-9]{1,2}/[0-9]{1,2})(?![0-9萬万塊元])|今天|今日|今早|今晚|昨天|昨日|昨晚|昨早|前天|前日|前晚|明天|明日|明早|明晚|後天`,
+    'g'
+  );
+  for (const match of phrase.matchAll(datePattern)) {
+    const before = phrase.slice(0, match.index);
+    const after = phrase.slice(match.index + match[0].length);
+    if (/^[0-9]/.test(match[0]) && (/[0-9./-]$/.test(before) || /^(?:\/[0-9]|[-.][0-9])/.test(after))) continue;
+    if (match[0] === '7/11' && /(?:去|到|在|進|逛)\s*$/.test(before)) continue;
+    dateSpans.push({ start: match.index, end: match.index + match[0].length, date: spokenDiaryDate(match[0], todayDate) });
+  }
+  const dates = [...new Set(dateSpans.map(span => span.date))];
+  const otherDates = /(?:上|下|這|本|前)個?月|(?:禮拜|星期|週|周)[日天一二三四五六1-7]|每(?:天|週|周|星期|月)|(?:前|過)幾天|(?:那|隔)天|[0-9一二三四五六七八九十]+\s*(?:號|日)(?!常|元|用|公車|路線|碼)/;
+  const body = maskSpokenDiarySpans(phrase, dateSpans);
+  let date = dates.length ? dates[0] : todayDate;
+  if (dates.length > 1 || otherDates.test(body) || !validSpokenDiaryDate(date)) {
+    date = '';
+    warnings.push('請確認這筆記帳的日期。');
+  }
+
+  const outAction = /支出|花費|花了|花掉|花錢|買了?|付款|付了|支付|繳了?|刷卡|刷了|扣款|扣了|捐了|給了|轉(?:帳)?給/;
+  const inAction = /收入|入帳|進帳|收到|收了|收款|賺了?|領了|獲得獎金|拿到|到帳/;
+  const incomeKind = /薪水|薪資|工資|月薪|獎金|年終|分紅|投資收益|利息|股息|股利|配息|退款入帳/;
+  const unclearAction = /(?:沒有|沒|未|尚未|不用|不必|不要|別|不是|並非|本來要|打算|預計|想要|想|如果|待|要)\s*(?:去|再)?\s*(?:支出|花費|花|購買|買|付|支?付|繳|刷|收|領|發薪|存|轉|扣|入帳|到帳|進帳)|(?:少|多)\s*(?:收了|收|付了|付|繳了|繳|花了|花)|(?:預算|報價|要價|最多花|至少花|多少錢|應收|應付|未付款)|[?？]\s*$/;
+
+  const categories = {
+    out: [
+      ['餐飲', /餐飲|午餐|晚餐|早午餐|早餐|午飯|晚飯|早飯|便當|咖啡|飲料|奶茶|手搖|餐廳|外送|伙食|火鍋|消夜|宵夜|點心|餐費|飯糰|包子/],
+      ['交通', /交通|油錢|加油|車票|船票|機票|搭船|搭車|捷運|公車|客運|高鐵|火車|計程車|小黃|停車|過路費|運輸費|uber(?!\s*eats)/i],
+      ['購物', /購物|網購|蝦皮|衣服|鞋子|褲子|鞋款|化妝品|玩具|買書|文具/],
+      ['家用', /家用|水電|電費|水費|瓦斯|房租|管理費|家用品|衛生紙|生活用品|日用品|網路費|手機費|電話費/],
+      ['醫療', /醫療|掛號|醫院|診所|看醫生|看診|看牙|回診|醫藥|藥費|買藥|醫師|健保費/],
+      ['娛樂', /娛樂|電影|演唱會|展覽|樂園|遊戲|KTV|唱歌/i]
+    ],
+    in: [
+      ['薪水', /薪水|薪資|工資|月薪|底薪/],
+      ['獎金', /獎金|年終|分紅|紅包/],
+      ['投資', /投資|利息|股息|股利|配息|賣股票/]
+    ]
+  };
+  const findCategories = (type, phrase = body) => categories[type].filter(([, pattern]) => pattern.test(phrase)).map(([name]) => name);
+
+  const hanDigits = '零〇○一二兩两三四五六七八九壹貳贰參叁肆伍陸陆柒捌玖';
+  const hanUnits = '十百千萬万億亿拾佰仟';
+  const digits = `0-9${hanDigits}`;
+  const numerals = digits + hanUnits;
+  const amountNumber = `(?:[${numerals}]*[${hanUnits}][${numerals}]*|[0-9]+(?:,[0-9]{3})*|[${hanDigits}]+)(?:[.點点][0-9]+|[.點点][${hanDigits}]+)?`;
+  const currency = '(?:新\\s*[臺台]\\s*幣|[臺台]\\s*幣|NT\\s*\\$|NTD|TWD|\\$)';
+  const unit = '(?:塊(?:錢)?|元(?:整)?|圓(?:整)?|大洋|新\\s*[臺台]\\s*幣|[臺台]\\s*幣|NTD\\b|TWD\\b)';
+  const explicitAmount = new RegExp(`(?:(${currency})\\s*([+-]?\\s*${amountNumber})\\s*(${unit})?|([+-]?\\s*${amountNumber})\\s*(${unit}))(\\s*半)?`, 'gi');
+  const candidates = [];
+  let uncertainAmount = false;
+  const foreign = /美金|美元|美刀|人民幣|日幣|日元|日圓|港幣|港元|澳幣|紐幣|英鎊|歐元|韓元|泰銖|新幣|新加坡幣|馬幣|越南盾|US\s*\$|HK\s*\$|(?:USD|JPY|CNY|RMB|HKD|EUR|AUD|GBP|CAD|KRW|SGD|MYR|THB)\b|[¥€£₩]/i;
+  const uncertainBefore = /(?:大約|差不多|將近|快要|快|約莫?|大概|超過|不到|至少|最多|少於|不超過|可能|估計|差|低於|預計|只有?\s*預算|負|負數)\s*(?:是|有)?\s*$/;
+  const uncertainAfter = new RegExp(`^\\s*(?:左右|上下|出頭|多(?=\\s*$|[，。,.、\\s])|還沒|嗎|嘛|[~〜～—–-]|(?:到|至|或)\\s*[${numerals}]|[.,]\\s*[0-9])`);
+
+  function captureAmount(match, value, half) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (candidates.some(item => start < item.end && item.start < end)) return;
+    const before = body.slice(0, start);
+    const after = body.slice(end);
+    const amount = spokenLedgerNumber(value) + (half ? 0.5 : 0);
+    if (uncertainBefore.test(before) || uncertainAfter.test(after)
+      || /(?:[0-9.%]|[0-9][:,])\s*$/.test(before) || /(?:[0-9零一二三四五六七八九十]+\s*[~〜～—–-]|[-−＋+])\s*$/.test(before)
+      || !Number.isFinite(amount) || amount <= 0 || amount > 1e8) {
+      uncertainAmount = true;
+      return;
+    }
+    candidates.push({ start, end, amount });
+  }
+
+  for (const match of body.matchAll(explicitAmount)) {
+    captureAmount(match, match[2] || match[4], match[6]);
+  }
+  if (!uncertainAmount && !foreign.test(body)) {
+    const amountCue = '(?:金額(?:是)?|總共|一共|共花|共付|花費|花了?|刷了|扣了|付了?|支付了?|繳了?|收了?|收到|賺了?|領了?|收入|支出|轉帳)';
+    const strongAmount = new RegExp(`${amountCue}[\\s:=]*([+-]?\\s*${amountNumber})(?=\\s*(?:[，,。.!！;；\\n]|$))`, 'g');
+    for (const match of body.matchAll(strongAmount)) {
+      const valueStart = match.index + match[0].lastIndexOf(match[1]);
+      captureAmount({ 0: match[1], index: valueStart }, match[1]);
+    }
+    const clauses = body.matchAll(/(?:[0-9][,.][0-9]|[^，,。.!！;；\n])+/g);
+    const trailingAmount = new RegExp(`(?:^|[^-${numerals}.點点])([+-]?\\s*${amountNumber})(?=\\s*$)`);
+    for (const clause of clauses) {
+      const match = clause[0].match(trailingAmount);
+      if (!match || !(findCategories('out', clause[0]).length || findCategories('in', clause[0]).length)) continue;
+      const valueStart = match.index + match[0].lastIndexOf(match[1]);
+      if (!/(?:第|訂單|編號|型號|電話)\s*$/.test(clause[0].slice(0, valueStart))) {
+        captureAmount({ 0: match[1], index: clause.index + valueStart }, match[1]);
+      }
+    }
+  }
+
+  let amount = candidates.length === 1 ? candidates[0].amount : null;
+  const speculative = unclearAction.test(body);
+  if (foreign.test(body)) {
+    warnings.push('請把金額確認為新台幣再儲存。');
+    amount = null;
+  } else if (speculative || uncertainAmount) {
+    warnings.push('請確認實際發生的金額。');
+    amount = null;
+  } else if (candidates.length > 1) {
+    warnings.push('聽到多個金額，請分開記或確認這一筆的金額。');
+  } else if (!amount) {
+    warnings.push('請確認新台幣金額。');
+  }
+
+  let type = '';
+  const outgoing = outAction.test(body);
+  const incoming = inAction.test(body);
+  const transfer = /ATM|提款|領現金|領錢|存現金|存進|存入|存錢|轉(?:帳)?給(?:我)?自己|自己(?:另)?一個帳戶/i.test(body);
+  if (!transfer && !speculative && candidates.length < 2 && !(outgoing && incoming)) {
+    if (outgoing) type = 'out';
+    else if (incoming || incomeKind.test(body)) type = 'in';
+    else if (amount && findCategories('out').length) type = 'out';
+  }
+  if (!type) warnings.push('請選擇收入或支出。');
+  const matches = type ? findCategories(type) : [];
+  const cat = type ? matches.length === 1 ? matches[0] : '其他' : '';
+  if (matches.length > 1) warnings.push('聽到多種類別，請確認要選的分類。');
+
+  const note = maskSpokenDiarySpans(source, [
+    ...(date ? dateSpans : []),
+    ...(amount ? candidates : [])
+  ])
+    .replace(/^[，,。.!！;；、\s]+/u, '')
+    .replace(/^\s*(?:幫我|請幫我|我要|請)?\s*(?:新增|記錄|記下|記)(?:一筆|個帳|帳|一下)[，,。.!！;；、\s]*/u, '')
+    .replace(/(?:[，,。.!！;；、\s])*(?:金額(?:是)?|總共|一共|共花|共付|花費|花了?|刷了|扣了|付了?|支付了?|繳了?|收了?|收到|賺了?|領了?|收入|支出)[，,。.!！;；、\s]*$/u, '')
+    .replace(/^\s*(?:收到|收入|支出|花費|金額是)\s*[：:,，]?\s*/u, '')
+    .replace(/^[，,。.!！;；、\s]+|[，,。.!！;；、\s]+$/gu, '')
+    .replace(/\s*[，,、；;][\s，,、；;]+/gu, '，')
+    .replace(/\s+([，,、；;])/gu, '$1')
+    .replace(/\s{2,}/gu, ' ');
+  return { type, amount, cat, date, note, warnings };
+}
+
+function spokenLedgerNumber(text) {
+  const digitPairs = {
+    零: '0', 〇: '0', '○': '0', 一: '1', 壹: '1', 二: '2', 貳: '2', 贰: '2', 兩: '2', 两: '2',
+    三: '3', 參: '3', 叁: '3', 四: '4', 肆: '4', 五: '5', 伍: '5', 六: '6', 陸: '6', 陆: '6',
+    七: '7', 柒: '7', 八: '8', 捌: '8', 九: '9', 玖: '9'
+  };
+  const normalized = String(text).trim().replace(/,/g, '')
+    .replace(/[零〇○一二兩两三四五六七八九壹貳贰參叁肆伍陸陆柒捌玖]/g, char => digitPairs[char])
+    .replace(/拾/g, '十').replace(/佰/g, '百').replace(/仟/g, '千')
+    .replace(/万/g, '萬').replace(/亿/g, '億').replace(/[點点]/g, '.');
+  if (/^\+?\d+(?:\.\d{1,2})?$/.test(normalized)) return Number(normalized);
+  const match = normalized.match(/^(\d?億)?([\d千百十]+萬)?([\d千百十]+)?(\.\d{1,2})?$/);
+  if (!match || ![match[1], match[2], match[3]].some(Boolean)) return NaN;
+
+  function sectionValue(raw) {
+    if (!raw) return 0;
+    if (/^\d{1,4}$/.test(raw)) return Number(raw);
+    const parts = raw.match(/^(?:0?(\d)千)?(?:0?(\d)百)?(?:0?(\d?)十)?(\d{1,2})?$/);
+    if (!parts) return NaN;
+    const [, thousands, hundreds, tens, units] = parts;
+    if (units?.length === 1 && tens === undefined && (thousands || hundreds)) return NaN;
+    if (units?.length === 2 && (units[0] !== '0' || tens !== undefined)) return NaN;
+    return Number(thousands || 0) * 1000 + Number(hundreds || 0) * 100
+      + (tens === undefined ? 0 : Number(tens || 1) * 10) + Number(units || 0);
+  }
+
+  const [, hundredMillion = '', tenThousands = '', rest = '', decimal = ''] = match;
+  if (tenThousands && /^[1-9]$/.test(rest)) return NaN;
+  return sectionValue(hundredMillion.slice(0, -1)) * 100000000
+    + sectionValue(tenThousands.slice(0, -1)) * 10000
+    + sectionValue(rest) + Number(decimal || 0);
+}
+
+function reviewSpokenComposer(){
+  if(spokenMic) return;
+  if(!spokenDraft().text.trim()){
+    spokenDraft().status = '先說一句，或在框裡輸入想記的事。';
+    updateSpokenComposer(); $('#voiceText').focus();
+    return;
+  }
+  const text = spokenDraft().text, date = dkey();
+  if(section==='plan'){
+    const {extra, ...draft} = parseSpokenReminder(text, date);
+    if(extra) draft.title = [draft.title, '備註 '+extra].filter(Boolean).join('，');
+    spokenDraft().review = draft;
+  }else if(section==='money') spokenDraft().review = parseSpokenLedger(text, date);
+  else spokenDraft().review = parseSpokenDiary(text, date);
+  spokenDraft().status = '';
+  updateSpokenComposer();
+  $('#voiceForm')?.scrollIntoView({block:'start'});
+  $('#voiceReviewHeading')?.focus({preventScroll:true});
+}
+
+function editSpokenRecord(date){
+  const record = spokenRecords()[date];
+  if(!record || spokenMic) return;
+  spokenDraft().review = {date, ...record, warnings:[], editing:true};
+  spokenDraft().status = '';
+  updateSpokenComposer();
+  $('#voiceForm')?.scrollIntoView({block:'start'});
+  $('#voiceReviewHeading')?.focus({preventScroll:true});
+}
+
+function endSpokenMic(){
+  const mic = spokenMic;
+  spokenMic = null;
+  if(mic){ try { mic.abort(); } catch(_){} }
+}
+
+function clearSpokenDrafts(){
+  endSpokenMic();
+  for(const draft of Object.values(spokenDrafts)){
+    draft.text = ''; draft.review = null; draft.status = '';
+  }
+}
+
+function toggleSpokenMic(){
+  const Recognition = spokenMicClass();
+  if(!Recognition) return;
+  if(spokenMic){
+    try { spokenMic.stop(); }
+    catch(_){
+      endSpokenMic();
+      spokenDraft().status = '語音輸入已停止，可以直接編輯文字。';
+      updateSpokenComposer();
+    }
+    return;
+  }
+  const prefix = spokenDraft().text.trim();
+  let heard = false;
+  spokenDraft().review = null;
+  try{
+    const mic = new Recognition();
+    spokenMic = mic;
+    mic.lang = 'zh-TW';
+    mic.interimResults = false;
+    mic.onresult = event=>{
+      if(spokenMic !== mic) return;
+      const text = Array.from(event.results, result=>result[0].transcript).join(' ').trim();
+      if(!text) return;
+      heard = true;
+      spokenDraft().text = [prefix,text].filter(Boolean).join('\n').slice(0,SPOKEN_TEXT_LIMIT);
+      updateSpokenComposer();
+    };
+    mic.onerror = event=>{
+      if(spokenMic !== mic) return;
+      spokenMic = null;
+      spokenDraft().status = event.error === 'no-speech' ? '沒有聽清楚，可以再試一次。' : '目前無法使用網頁麥克風，可以用手機鍵盤的麥克風或直接打字。';
+      updateSpokenComposer();
+    };
+    mic.onend = ()=>{
+      if(spokenMic !== mic) return;
+      spokenMic = null;
+      if(heard) reviewSpokenComposer();
+      else { spokenDraft().status = '沒有聽清楚，可以再試一次。'; updateSpokenComposer(); }
+    };
+    spokenDraft().status = '正在聽妳說話…';
+    updateSpokenComposer();
+    mic.start();
+  }catch(_){
+    spokenMic = null;
+    spokenDraft().status = '目前無法使用網頁麥克風，可以用手機鍵盤的麥克風或直接打字。';
+    updateSpokenComposer();
+  }
+}
+
+document.addEventListener('input', e=>{
+  if(e.target.id === 'voiceText'){
+    spokenDraft().text = e.target.value;
+    if(spokenDraft().review || spokenDraft().status){
+      spokenDraft().review = null;
+      spokenDraft().status = '';
+      updateSpokenComposer();
+    }
+  }else if(spokenDraft().review && e.target.form?.id === 'voiceForm'){
+    const {name, value} = e.target;
+    spokenDraft().review[name] = value;
+    if(section==='money' && name==='type'){
+      const category = e.target.form.elements.cat;
+      const selection = spokenDraft().review.cat;
+      category.innerHTML = spokenLedgerCategories(value, selection);
+      spokenDraft().review.cat = category.value;
+    }
+  }
+});
+
+function finishSpokenEntry(message){
+  spokenDraft().text = '';
+  spokenDraft().review = null;
+  spokenDraft().status = message;
+  render(); toast(message);
+}
+
+function saveSpokenReminder({title, date, time, rep}){
+  const name = title.value.trim();
+  if(!name || name.length>60){ toast('提醒名稱要在 60 字內'); title.focus(); return; }
+  if(!validSpokenDiaryDate(date.value) || !Object.keys(REP).includes(rep.value)){
+    toast('請確認日期和重複方式'); return;
+  }
+  if(storeListEntry('events', {title:name, date:date.value, time:time.value, rep:rep.value, done:{}})){
+    finishSpokenEntry('提醒已記好 ✓ 想準時響就按該筆旁的 📅');
+  }
+}
+
+function saveSpokenLedger({type, amount, cat, date, note}){
+  const entry = {
+    type:type.value, amt:Math.round(amount.valueAsNumber*100)/100,
+    cat:cat.value, note:note.value.trim(), date:date.value,
+  };
+  if(!validSpokenDiaryDate(entry.date) || !(entry.amt>0 && entry.amt<=1e8) ||
+    !(CATS[entry.type]||[]).some(([label])=>label===entry.cat)){
+    toast('請確認記帳的類型、金額、分類和日期'); return;
+  }
+  if(entry.note.length>40){ toast('備註要在 40 字內'); note.focus(); return; }
+  if(storeListEntry('ledger', entry)){
+    mMonth = entry.date.slice(0,7);
+    finishSpokenEntry('已記帳 ✓');
+  }
+}
+
+document.addEventListener('submit', e=>{
+  if(e.target.id !== 'voiceForm') return;
+  e.preventDefault();
+  if(!spokenDraft().review || spokenMic || !S.profile || window.Cloud?.watcher) return;
+  const {elements} = e.target;
+  if(section==='plan'){ saveSpokenReminder(elements); return; }
+  if(section==='money'){ saveSpokenLedger(elements); return; }
+  const date = elements.date.value;
+  const number = name=>elements[name]?.value ? elements[name].valueAsNumber : null;
+  const weight = number('weight'), waist = number('waist'), water = number('water');
+  const note = elements.note.value.trim();
+  const editing = spokenDraft().review.editing;
+  if(!validSpokenDate(date)){ toast('請確認記錄日期'); return; }
+  if(!editing && weight === null && waist === null && water === null && !note){
+    toast('請填入至少一項紀錄');
+    return;
+  }
+
+  const records = spokenRecords();
+  const current = records[date] || {};
+  let savedNote = current.note || '';
+  if(editing) savedNote = note;
+  else if(note && savedNote !== note && !savedNote.endsWith('\n'+note)){
+    savedNote = [savedNote, note].filter(Boolean).join('\n');
+  }
+  const savedWaist = editing ? waist : waist ?? current.waist ?? null;
+  const hasPrivateChange = editing || waist !== null || !!note;
+  const hasProgress = weight !== null || water !== null;
+  const previousDay = S.days[date], previousUpdatedAt = S.updatedAt;
+  let previousPrivate;
+  try{
+    if(hasPrivateChange){
+      previousPrivate = localStorage.getItem(SPOKEN_RECORDS_KEY);
+      if(savedWaist !== null || savedNote) records[date] = {waist:savedWaist, note:savedNote};
+      else delete records[date];
+      localStorage.setItem(SPOKEN_RECORDS_KEY, JSON.stringify(records));
+    }
+    if(hasProgress){
+      const day = {...(previousDay || {water:0, habits:{}})};
+      if(weight !== null) day.w = r1(weight);
+      if(water !== null) day.water = water;
+      if(doneCount(day) < TOTAL) day.perfect = false;
+      S.days[date] = day;
+      save();
+    }
+  }catch(_){
+    if(previousDay) S.days[date] = previousDay; else delete S.days[date];
+    S.updatedAt = previousUpdatedAt;
+    if(previousPrivate !== undefined){
+      try{
+        if(previousPrivate === null) localStorage.removeItem(SPOKEN_RECORDS_KEY);
+        else localStorage.setItem(SPOKEN_RECORDS_KEY, previousPrivate);
+      }catch(_){}
+    }
+    toast('儲存失敗，請確認裝置空間後再試一次');
+    return;
+  }
+
+  if(!editing) spokenDraft().text = '';
+  spokenDraft().review = null;
+  spokenDraft().status = `已記錄 ${dateLabel(date)} ✓`;
+  if(date === dkey() && hasProgress) afterProgress(true); else render();
+  if(weight !== null) checkUnlock();
+  toast(spokenDraft().status);
+});
+
 /* ========== 計算 ========== */
 function doneCount(day){
   if(!day) return 0;
@@ -696,6 +1631,7 @@ function renderToday(){
   <div id="loginTip">${loginTip()}</div>
   ${todayPlanBar()}
   ${nudge(day) ? `<div class="nudge">${nudge(day)}</div>` : ''}
+  ${renderSpokenComposer()}
 
   <div class="card petcard ${acc.rainbow?'rainbow':''}">
     <div class="bubble" id="bubble">${esc(petLine)}</div>
@@ -902,7 +1838,7 @@ function renderSettings(){
   </div>
   <div class="card">
     <h3>💾 資料備份 <small>${window.Cloud&&Cloud.user?'已有雲端同步，這是額外保險':'沒登入時，資料只存在這支手機'}</small></h3>
-    <div class="muted" style="margin-bottom:6px">換手機或清除瀏覽器資料前，記得先備份。</div>
+    <div class="muted" style="margin-bottom:6px">腰圍與語音補充筆記存在這台裝置。換手機或清除瀏覽器資料前，記得先備份。</div>
     <button class="btn ghost" data-act="export">下載備份檔</button>
     <button class="btn ghost" data-act="import">從備份檔還原</button>
     <input type="file" id="file" accept="application/json,.json" class="hide">
@@ -1031,13 +1967,24 @@ function drawCloudDot(){
 }
 
 /* ========== 三頁：日記／提醒／記帳 ========== */
-let section = localStorage.getItem('qq-section') || 'diary';
+const storedSection = localStorage.getItem('qq-section');
+let section = Object.keys(spokenDrafts).includes(storedSection) ? storedSection : 'diary';
 function segBar(){
   const b = (k,t)=>`<button data-sec="${k}" class="${section===k?'on':''}">${t}</button>`;
   return `<div class="seg">${b('diary','💗 日記')}${b('plan','📅 提醒')}${b('money','💰 記帳')}</div>`;
 }
 const uid = ()=> Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 const live = a => (a||[]).filter(x=>!x.del);
+function storeListEntry(key, fields){
+  const previous = S[key], previousUpdatedAt = S.updatedAt;
+  S[key] = [...(previous||[]), {...fields, id:uid(), u:Date.now()}];
+  try{ save(); return true; }
+  catch(_){
+    S[key] = previous; S.updatedAt = previousUpdatedAt;
+    toast('儲存失敗，請確認裝置空間後再試一次');
+    return false;
+  }
+}
 // 合併有 id 的清單：同一筆以「最後修改」的為主，刪除也會同步
 function mergeList(a, b){
   const m = new Map();
@@ -1083,6 +2030,7 @@ function renderPlan(){
   }
   const daily = live(S.events).filter(ev=>ev.rep==='daily');
   return `<div class="top"><div><div class="hello">📅 提醒</div><div class="date">記下要做的事，做完點 ✓</div></div></div>
+  ${renderSpokenComposer()}
   <div class="card pform">
     <label class="f">要做什麼<input id="pTitle" maxlength="60" placeholder="例如：回診、繳電費、接小孩"></label>
     <div class="r"><label class="f">日期<input id="pDate" type="date" value="${t}"></label>
@@ -1138,6 +2086,7 @@ function renderMoney(){
       <span class="lv ${x.type==='in'?'in-c':'out-c'}">${x.type==='in'?'+':'−'}${Math.round(x.amt).toLocaleString()}</span></button>`;
   });
   return `<div class="top"><div><div class="hello">💰 記帳</div><div class="date">金額 → 分類 → 存，三步完成</div></div></div>
+  ${renderSpokenComposer()}
   <div class="card">
     <div class="ttog"><button data-x="mtype" data-t="out" class="out ${mType==='out'?'on':''}">支出</button><button data-x="mtype" data-t="in" class="in ${mType==='in'?'on':''}">收入</button></div>
     <div class="amt"><span>NT$</span><input id="mAmt" type="number" inputmode="decimal" min="0" placeholder="0"></div>
@@ -1168,7 +2117,10 @@ function editEntry(x){
 
 document.addEventListener('click', e=>{
   const sb = e.target.closest('[data-sec]');
-  if(sb){ section = sb.dataset.sec; localStorage.setItem('qq-section', section); render(); window.scrollTo(0,0); return; }
+  if(sb){
+    if(section!==sb.dataset.sec && spokenMic){ endSpokenMic(); spokenDraft().status = ''; }
+    section = sb.dataset.sec; localStorage.setItem('qq-section', section); render(); window.scrollTo(0,0); return;
+  }
   const el = e.target.closest('[data-x]'); if(!el) return;
   const x = el.dataset.x, now = Date.now();
   S.events = S.events || []; S.ledger = S.ledger || [];
@@ -1178,8 +2130,9 @@ document.addEventListener('click', e=>{
       const title = $('#pTitle').value.trim(), date = $('#pDate').value, time = $('#pTime').value;
       if(!title){ toast('先寫要做什麼'); $('#pTitle').focus(); return; }
       if(!date){ toast('選一下日期'); return; }
-      S.events.push({id:uid(), title, date, time, rep:$('#pRep').value, done:{}, u:now});
-      save(); render(); toast('記好了 ✓ 想準時響就按 📅'); break; }
+      if(storeListEntry('events', {title, date, time, rep:$('#pRep').value, done:{}})){
+        render(); toast('記好了 ✓ 想準時響就按 📅');
+      } break; }
     case 'pdone': { const ev = findE(el.dataset.id); if(!ev) return; ev.done = ev.done||{}; ev.done[el.dataset.k] = !ev.done[el.dataset.k]; ev.u = now; save(); render(); if(ev.done[el.dataset.k]) toast('完成一件，好棒 ✨'); break; }
     case 'pdel': { const ev = findE(el.dataset.id); if(!ev) return;
       if(!confirm(`刪除「${ev.title}」${ev.rep!=='none'?'（之後重複的也會一起刪掉）':''}？`)) return;
@@ -1194,9 +2147,10 @@ document.addEventListener('click', e=>{
       if(!(amt > 0)){ toast('先輸入金額'); $('#mAmt').focus(); return; }
       if(amt > 1e8){ toast('金額好像太大了，再確認一下'); return; }
       const date = $('#mDate').value || dkey();
-      S.ledger.push({id:uid(), type:mType, amt, cat:mCat, note:$('#mNote').value.trim(), date, u:now});
-      mMonth = date.slice(0,7); save(); render();
-      toast(`${mType==='in'?'收入':'支出'} ${Math.round(amt).toLocaleString()} 記好了 ✓`); break; }
+      if(storeListEntry('ledger', {type:mType, amt, cat:mCat, note:$('#mNote').value.trim(), date})){
+        mMonth = date.slice(0,7); render();
+        toast(`${mType==='in'?'收入':'支出'} ${Math.round(amt).toLocaleString()} 記好了 ✓`);
+      } break; }
     case 'mprev': case 'mnext': { const [y,m] = mMonth.split('-').map(Number); const d = new Date(y, m-1 + (x==='mnext'?1:-1), 1); mMonth = d.getFullYear()+'-'+pad(d.getMonth()+1); render(); break; }
     case 'medit': { const it = findL(el.dataset.id); if(it) editEntry(it); break; }
     case 'etype': { const t = el.dataset.t; document.querySelectorAll('[data-x=etype]').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
@@ -1215,7 +2169,10 @@ document.addEventListener('click', e=>{
 /* ========== 主繪製 ========== */
 function render(){
   const app = $('#app');
-  if(window.Cloud && Cloud.watcher){ $('#tabs').classList.add('hide'); app.innerHTML = renderWatch(); return; }
+  if(window.Cloud && Cloud.watcher){ clearSpokenDrafts(); $('#tabs').classList.add('hide'); app.innerHTML = renderWatch(); return; }
+  if(section==='diary' && tab!=='today' && spokenMic){
+    endSpokenMic(); spokenDraft().status = '';
+  }
   if(!S.profile){ app.innerHTML = renderOnboard(); $('#tabs').classList.add('hide'); bindGoalHint(); return; }
   $('#tabs').classList.toggle('hide', section!=='diary');
   if(section==='plan'){ app.innerHTML = segBar() + renderPlan(); drawCloudDot(); return; }
@@ -1234,8 +2191,8 @@ function bindGoalHint(){
 }
 
 /* ========== 互動 ========== */
-function afterProgress(){
-  save();
+function afterProgress(saved = false){
+  if(!saved) save();
   const day = today();
   if(!day.outing && doneCount(day) >= OUTING_AT){
     day.outing = true;
@@ -1262,6 +2219,10 @@ document.addEventListener('click', e=>{
   const el = e.target.closest('[data-act]'); if(!el) return;
   const act = el.dataset.act, day = S.profile ? today() : null;
   switch(act){
+    case 'voice-mic': toggleSpokenMic(); break;
+    case 'voice-review': reviewSpokenComposer(); break;
+    case 'voice-back': spokenDraft().review = null; updateSpokenComposer(); $('#voiceText').focus(); break;
+    case 'voice-history': editSpokenRecord(el.dataset.k); break;
     case 'start': {
       const r = readProfile(); if(r.err){ $('#pWarn').innerHTML = `<div class="warn">${r.err}</div>`; return; }
       S.profile = {...r.p, startDate:dkey(), cheer:[]};
@@ -1302,16 +2263,20 @@ document.addEventListener('click', e=>{
     case 'savecheer': {
       S.profile.cheer = $('#cheer').value.split('\n').map(s=>s.trim()).filter(Boolean); save(); toast(`存好 ${S.profile.cheer.length} 句打氣話 💌`); break; }
     case 'export': {
-      const blob = new Blob([JSON.stringify(S,null,1)], {type:'application/json'});
+      const blob = new Blob([JSON.stringify({...S, privateSpokenRecords:spokenRecords()},null,1)], {type:'application/json'});
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `輕輕日記備份_${dkey()}.json`; a.click();
       setTimeout(()=>URL.revokeObjectURL(a.href), 2000); break; }
     case 'import': { const f = $('#file'); f.onchange = ()=>{
         const file = f.files[0]; if(!file) return; const rd = new FileReader();
         rd.onload = ()=>{ try{ const d = JSON.parse(rd.result); if(!d.profile || !d.days) throw 0;
-          if(confirm('用備份檔取代目前的資料？')){ S = d; save(); render(); toast('還原成功 ✓'); } }
+          if(confirm('用備份檔取代目前的資料？')){
+            const {privateSpokenRecords, ...diary} = d;
+            if(privateSpokenRecords !== undefined) localStorage.setItem(SPOKEN_RECORDS_KEY, JSON.stringify(cleanSpokenRecords(privateSpokenRecords)));
+            clearSpokenDrafts(); S = diary; save(); render(); toast('還原成功 ✓');
+          } }
           catch(_){ toast('這個檔案看不懂，確定是備份檔嗎？'); } };
         rd.readAsText(file); }; f.click(); break; }
-    case 'reset': { if(confirm('確定要清除所有紀錄、重新開始嗎？（無法復原，建議先下載備份）')){ localStorage.removeItem(KEY); S = load(); tab='today'; render(); if(window.Cloud && Cloud.user) Cloud.wipe(); } break; }
+    case 'reset': { if(confirm('確定要清除所有紀錄、重新開始嗎？（無法復原，建議先下載備份）')){ localStorage.removeItem(KEY); localStorage.removeItem(SPOKEN_RECORDS_KEY); clearSpokenDrafts(); S = load(); tab='today'; render(); if(window.Cloud && Cloud.user) Cloud.wipe(); } break; }
     case 'swap': { day.swap = day.swap||{}; day.swap[el.dataset.m] = (day.swap[el.dataset.m]||0) + 1; save(); render(); break; }
     case 'eat': { day.ate = day.ate||{}; day.ate[el.dataset.m] = !day.ate[el.dataset.m]; save(); render(); break; }
     case 'walkdone': { day.walkDone = !day.walkDone; syncWorkout(day); if(!day.habits.walk) day.perfect=false; afterProgress(); break; }
@@ -1333,7 +2298,7 @@ document.addEventListener('click', e=>{
     case 'share': shareToday(); break;
     case 'login': { if(window.Cloud) Cloud.login(); break; }
     case 'watchreload': { if(window.Cloud) Cloud.loadWatch(); break; }
-    case 'logout': { if(Cloud.watcher){ Cloud.logout(); break; } if(confirm('登出後，這支手機上的紀錄還會留著，只是不再同步到雲端。確定登出？')) Cloud.logout(); break; }
+    case 'logout': { if(Cloud.watcher){ Cloud.logout(); break; } if(confirm('登出後，這支手機上的紀錄還會留著，只是不再同步到雲端。確定登出？')){ clearSpokenDrafts(); Cloud.logout(); } break; }
     case 'later': { S.loginTipUntil = Date.now() + 3*864e5; save(); $('#loginTip').innerHTML=''; toast('好～3 天後再提醒妳，也可以到「設定」登入'); break; }
     case 'syncnow': { Cloud.sync(); break; }
     case 'close': closeModal(); break;
@@ -1483,7 +2448,7 @@ function confetti(set){
 }
 
 // 自動更新：打開或回到 App 時，偷偷問伺服器有沒有新版，有就換上
-const APP_VERSION = '20261123-2';
+const APP_VERSION = '20261127-1';
 async function checkUpdate(){
   try{
     const r = await fetch(location.pathname + '?check=' + Date.now(), {cache:'no-store'});
@@ -1500,7 +2465,10 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) checkUp
 // 跨過午夜時自動換成新的一天
 let lastKey = dkey();
 document.addEventListener('visibilitychange', ()=>{
-  if(document.hidden) return;
+  if(document.hidden){
+    if(spokenMic){ endSpokenMic(); spokenDraft().status = ''; updateSpokenComposer(); }
+    return;
+  }
   if(dkey()!==lastKey){ lastKey=dkey(); petLine=null; render(); }
   if(window.Cloud && Cloud.user) Cloud.sync();
 });
