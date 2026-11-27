@@ -287,6 +287,30 @@ label.f input:focus,label.f textarea:focus{border-color:var(--peach)}
 .lit .lt small{display:block;color:var(--soft);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lit .lv{font-weight:800;font-size:15px}
 .hide{display:none!important}
+/* 日記管理 */
+.manager-tabs button{flex:1;min-height:44px;padding:6px 3px}
+.manager-rows{list-style:none;margin:4px 0 0;padding:0}
+.manager-row{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}
+.manager-row:last-child{border-bottom:0;padding-bottom:0}
+.manager-record{min-width:0;overflow-wrap:anywhere;font-size:15px}
+.manager-record p{margin:4px 0 0;color:var(--soft);font-size:14px;line-height:1.5}
+.manager-record .manager-note{color:var(--ink);white-space:pre-wrap}
+.manager-row .btn{min-height:44px;flex:none}
+.manager-dialog{max-width:390px;width:calc(100% - 32px);max-height:calc(100dvh - 32px);overflow:auto;border:0;border-radius:20px;padding:18px;background:#fff;color:var(--ink);box-shadow:var(--shadow)}
+.manager-dialog::backdrop{background:#291a16a8}
+.manager-dialog h2{margin:0 0 14px;font-size:20px}
+.manager-dialog [hidden]{display:none}
+.manager-dialog .f{min-width:0}
+.manager-dialog .row2 .f{flex:1}
+.manager-dialog .f>input,.manager-dialog .f>select,.manager-dialog .f>textarea{font-size:16px;min-width:0}
+.manager-dialog .manager-delete{color:#93352a}
+.owner-management p{color:var(--ink);font-size:14px;line-height:1.55;margin:8px 0}
+.owner-management .owner-management-account{font-weight:700;overflow-wrap:anywhere}
+.owner-management .owner-management-status{font-weight:700}
+.owner-management .owner-management-voice{border-top:1px solid var(--line);margin-top:16px;padding-top:16px}
+.owner-management h4{font-size:15px;margin:0 0 6px}
+.owner-management .btn{min-height:44px}
+.owner-management .btn:disabled{opacity:.55;cursor:default}
 </style>
 </head>
 <body>
@@ -543,6 +567,7 @@ function nudge(day){
 }
 
 let S = load();
+let savedDayContents = dayContents(S.days);
 let tab = 'today';
 let chartRange = 30;
 let petLine = null;
@@ -551,14 +576,39 @@ function load(){
   try{ return JSON.parse(localStorage.getItem(KEY)) || {days:{},postcards:[],unlocked:0}; }
   catch(e){ return {days:{},postcards:[],unlocked:0}; }
 }
-function save(){ S.updatedAt = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); window.dispatchEvent(new Event('qq-saved')); }
+function dayContents(days = {}){
+  return Object.fromEntries(Object.entries(days).map(([date, day])=>{
+    const {u, ...contents} = day;
+    return [date, JSON.stringify(contents)];
+  }));
+}
+function save({preserveTombstones = false} = {}){
+  const contents = dayContents(S.days);
+  const changed = Object.keys(contents).filter(date=>contents[date] !== savedDayContents[date]);
+  const updatedAt = Math.max(Date.now(), (S.updatedAt||0)+1, ...changed.map(date=>(S.days[date].u||0)+1));
+  const days = {...S.days};
+  for(const date of changed){
+    days[date] = {...days[date], u:updatedAt};
+    if(!preserveTombstones) delete days[date].del;
+  }
+  localStorage.setItem(KEY, JSON.stringify({...S, updatedAt, days}));
+  for(const date of changed){
+    S.days[date].u = updatedAt;
+    if(!preserveTombstones) delete S.days[date].del;
+  }
+  S.updatedAt = updatedAt;
+  savedDayContents = dayContents(days);
+  window.dispatchEvent(new Event('qq-saved'));
+}
 // 兩邊的資料合併：以比較新的為主，另一邊多出來的日子、明信片也保留
 function mergeData(a, b){
   if(!a || !a.profile) return b; if(!b || !b.profile) return a;
   const [n, o] = (a.updatedAt||0) >= (b.updatedAt||0) ? [a, b] : [b, a];
   const m = JSON.parse(JSON.stringify(n));
   m.days = m.days || {};
-  for(const k in (o.days||{})) if(!m.days[k]) m.days[k] = o.days[k];
+  for(const [date, day] of Object.entries(o.days||{})){
+    if(!m.days[date] || (day.u||0) > (m.days[date].u||0)) m.days[date] = day;
+  }
   m.postcards = m.postcards || [];
   const seen = new Set(m.postcards.map(c=>c.d+c.t));
   (o.postcards||[]).forEach(c=>{ if(!seen.has(c.d+c.t)) m.postcards.push(c); });
@@ -573,9 +623,15 @@ function mergeData(a, b){
 window.QQ = {
   get: ()=>S,
   merge: mergeData,
-  replace(d){ S = d; localStorage.setItem(KEY, JSON.stringify(S)); petLine = null; render(); },
-  watchers: ['kjkjkjkjkj47@gmail.com'],   // 觀察帳號：只能看、不能改
-  setWatch(w){ WATCH = w; render(); },
+  replace(d){
+    const saved = JSON.stringify(d);
+    if(saved === JSON.stringify(S)) return;
+    localStorage.setItem(KEY, saved);
+    S = d; savedDayContents = dayContents(S.days); petLine = null; render();
+  },
+  spokenRecords,
+  watchers: ['kjkjkjkjkj47@gmail.com'],
+  setManager(state){ setManagerState(state); },
   render(){ render(); },
   refresh(){ // 只更新雲端那一塊，不打斷正在填的表單
     if(window.Cloud && Cloud.watcher) return render();
@@ -583,6 +639,7 @@ window.QQ = {
     if(g) g.innerHTML = googleBtn('用 Google 登入，取回我的紀錄');
     if(c) c.innerHTML = cloudCard();
     const l = $('#loginTip'); if(l) l.innerHTML = loginTip();
+    updateOwnerManagementAccess();
     drawCloudDot();
   },
 };
@@ -672,7 +729,7 @@ function renderSpokenComposer(){
     <p id="voiceStatus" role="status" ${status ? '' : 'hidden'}>${esc(status)}</p>
     <div id="voiceResult">${renderSpokenReview()}</div>
     <p id="voiceHelp" class="voice-help">${canSpeak ? '語音由瀏覽器轉成文字，可能使用線上辨識。也可以用手機鍵盤的麥克風。' : '點文字框後，可以用手機鍵盤的麥克風聽寫。'}
-      ${inDiary ? '腰圍與補充筆記留在這台裝置，可在設定下載備份。' : ''}</p>
+      ${inDiary ? `<span id="voiceShareDisclosure">${ownerVoiceStorageText()}</span>` : ''}</p>
     ${renderSpokenHistory(records)}
   </section>`;
 }
@@ -1500,6 +1557,7 @@ document.addEventListener('submit', e=>{
     return;
   }
 
+  if(hasPrivateChange) window.dispatchEvent(new Event('qq-spoken-saved'));
   if(!editing) spokenDraft().text = '';
   spokenDraft().review = null;
   spokenDraft().status = `已記錄 ${dateLabel(date)} ✓`;
@@ -1813,11 +1871,118 @@ function renderCollect(){
 }
 
 /* ========== 畫面：設定 ========== */
+/* ========== 我的日記管理權限 ========== */
+let ownerAccessRequest = null;
+let ownerAccessFeedback = null;
+
+function ownerVoiceStorageText(){
+  const C = window.Cloud;
+  return C?.user && !C.watcher && C.access?.shareSpoken && C.canShareOnThisDevice()
+    ? '腰圍與語音補充筆記存在這台裝置，也有一份分享給管理帳號查看。'
+    : '腰圍與語音補充筆記存在這台裝置，可在設定下載備份。';
+}
+
+function renderOwnerManagementAccess(){
+  const C = window.Cloud;
+  if(C?.watcher) return '';
+  const heading = '<h3 id="managementAccessHeading">日記管理權限</h3>';
+  const card = body => `<section class="card owner-management" aria-labelledby="managementAccessHeading">${heading}${body}</section>`;
+  if(!C || !C.user) return card('<p>用自己的 Google 帳號登入後，可在這裡設定管理權限。</p>');
+  if(C.access === null || C.access === undefined){
+    return card(C.accessError
+      ? '<p role="alert">目前無法讀取權限設定。請重新整理後再試。</p>'
+      : '<p role="status">正在讀取權限設定…</p>');
+  }
+
+  const active = ownerAccessRequest?.uid === C.user.uid;
+  const feedback = ownerAccessFeedback?.uid === C.user.uid ? ownerAccessFeedback : null;
+  const action = (key, label, secondary = false) =>
+    `<button type="button" class="btn${secondary ? ' ghost' : ''}" data-owner-access="${key}"${active ? ' disabled' : ''}>${label}</button>`;
+  const address = esc(QQ.watchers[0]);
+  const {manage, shareSpoken} = C.access;
+  const sharingHere = shareSpoken && C.canShareOnThisDevice();
+  return card(`
+    <p class="owner-management-account">${address}</p>
+    <p>開啟後，管理帳號可查看、修改或刪除妳已同步的日記、提醒和記帳，包含心情小記。妳可以隨時在這裡收回權限。</p>
+    <p class="owner-management-status">管理權限${manage ? '已開啟' : '已關閉'}</p>
+    ${manage ? action('revoke', '收回管理權限', true) : action('grant', '開啟管理權限')}
+    ${manage ? `<div class="owner-management-voice">
+      <h4>分享腰圍與語音補充筆記</h4>
+      <p>開啟後，管理帳號可以查看這台裝置的腰圍與語音補充筆記。妳可以隨時停止分享。</p>
+      <p class="owner-management-status">${sharingHere ? '這台裝置已開啟分享' : shareSpoken ? '目前從另一台裝置分享' : '目前未分享'}</p>
+      ${sharingHere ? '' : action('share', shareSpoken ? '改成分享這台裝置' : '分享這台裝置', true)}
+      ${shareSpoken ? action('unshare', '停止分享腰圍與補充筆記', true) : ''}
+    </div>` : ''}
+    ${active ? '<p role="status">正在儲存權限設定…</p>' : ''}
+    ${feedback ? `<p role="${feedback.error ? 'alert' : 'status'}">${esc(feedback.text)}</p>` : ''}
+  `);
+}
+
+function updateOwnerManagementAccess(){
+  const access = $('#managementAccess');
+  if(access) access.innerHTML = renderOwnerManagementAccess();
+  for(const selector of ['#voiceShareDisclosure', '#backupVoiceDisclosure']){
+    const disclosure = $(selector);
+    if(disclosure) disclosure.textContent = ownerVoiceStorageText();
+  }
+}
+
+document.addEventListener('click', async e=>{
+  const button = e.target.closest?.('#managementAccess [data-owner-access]');
+  const C = window.Cloud;
+  if(!button || !C?.user || C.watcher || !C.access || ownerAccessRequest) return;
+  const {uid} = C.user;
+  const {manage, shareSpoken} = C.access;
+  const address = QQ.watchers[0];
+  const messages = {
+    grant: !manage && {
+      manage:true, share:false,
+      prompt:`開啟後，${address} 可以查看、修改或刪除妳已同步的日記、提醒和記帳。確定開啟嗎？`,
+      done:'管理權限已開啟。',
+    },
+    revoke: manage && {
+      manage:false, share:false,
+      prompt:'要收回管理權限並停止分享腰圍與語音補充筆記嗎？',
+      done:'已收回管理權限。',
+    },
+    share: manage && (!shareSpoken || !C.canShareOnThisDevice()) && {
+      manage:true, share:true,
+      prompt:`要讓 ${address} 查看這台裝置目前和之後記下的腰圍與語音補充筆記嗎？`,
+      done:'已分享這台裝置的腰圍與語音補充筆記。',
+    },
+    unshare: manage && shareSpoken && {
+      manage:true, share:false,
+      done:'已停止分享腰圍與語音補充筆記。',
+    },
+  };
+  const next = messages[button.dataset.ownerAccess];
+  if(!next || (next.prompt && !confirm(next.prompt))) return;
+  const request = {uid};
+  ownerAccessRequest = request;
+  ownerAccessFeedback = null;
+  updateOwnerManagementAccess();
+  try{
+    const result = await C.setAccess(next.manage, next.share);
+    if(result === false) throw new Error('Access update failed');
+    if(C.user?.uid === uid){
+      ownerAccessFeedback = {uid, text:next.done};
+    }
+  }catch(_){
+    if(C.user?.uid === uid){
+      ownerAccessFeedback = {uid, text:'無法儲存權限設定，請確認網路後再試。', error:true};
+    }
+  }finally{
+    if(ownerAccessRequest === request) ownerAccessRequest = null;
+    updateOwnerManagementAccess();
+  }
+});
+
 function renderSettings(){
   const p = S.profile;
   return `
   <div class="top"><div class="hello">設定 ⚙️</div></div>
   <div id="cloudArea">${cloudCard()}</div>
+  <div id="managementAccess">${renderOwnerManagementAccess()}</div>
   <div class="card">
     <h3>基本資料</h3>
     ${profileFields(p)}
@@ -1838,7 +2003,7 @@ function renderSettings(){
   </div>
   <div class="card">
     <h3>💾 資料備份 <small>${window.Cloud&&Cloud.user?'已有雲端同步，這是額外保險':'沒登入時，資料只存在這支手機'}</small></h3>
-    <div class="muted" style="margin-bottom:6px">腰圍與語音補充筆記存在這台裝置。換手機或清除瀏覽器資料前，記得先備份。</div>
+    <div class="muted" style="margin-bottom:6px"><span id="backupVoiceDisclosure">${ownerVoiceStorageText()}</span> 換手機或清除瀏覽器資料前，記得先備份。</div>
     <button class="btn ghost" data-act="export">下載備份檔</button>
     <button class="btn ghost" data-act="import">從備份檔還原</button>
     <input type="file" id="file" accept="application/json,.json" class="hide">
@@ -1901,7 +2066,7 @@ function cloudCard(){
   const C = window.Cloud;
   if(!C) return `<div class="card"><h3>☁️ 雲端同步</h3><div class="muted">雲端功能還沒載入（可能沒有網路），紀錄先存在手機裡，連上網再回來看看。</div></div>`;
   if(!C.user) return `<div class="card"><h3>☁️ 雲端同步 <small>建議開啟</small></h3>
-    <div class="muted" style="line-height:1.7;margin-bottom:10px">用妳自己的 Google 帳號登入後，紀錄會自動存到雲端：換手機、刪掉 App 都不會不見，手機和電腦也能看同一本日記。只有妳和老大看得到（老大只能看、不能改，心情小記的文字不會給他看）。</div>
+    <div class="muted" style="line-height:1.7;margin-bottom:10px">用妳自己的 Google 帳號登入，日記、提醒與記帳就會存到雲端，換手機也可取回。可以在設定開啟日記管理權限。</div>
     ${googleBtn('用 Google 登入')}
     ${C.error ? `<div class="warn" style="margin-top:10px">${esc(C.error)}</div>` : ''}</div>`;
   const t = C.lastSync ? `${pad(C.lastSync.getHours())}:${pad(C.lastSync.getMinutes())}` : '';
@@ -1909,53 +2074,239 @@ function cloudCard(){
     <div class="acct">${C.user.photoURL?`<img src="${esc(C.user.photoURL)}" alt="" referrerpolicy="no-referrer">`:'<span>👤</span>'}
       <div><b>${esc(C.user.displayName||'')}</b><div class="muted">${esc(C.user.email||'')}</div></div></div>
     <div class="muted" style="margin-top:8px">✓ 每次打卡都會自動存到雲端</div>
-    <div class="muted" style="margin-top:4px">👀 老大可以看妳的打卡進度（只能看、不能改；心情小記的文字不會給他看）</div>
+    <div class="muted" style="margin-top:4px">可在「日記管理權限」設定誰能管理妳已同步的日記、提醒與記帳。</div>
     ${C.error ? `<div class="warn" style="margin-top:10px">${esc(C.error)}</div>` : ''}
     <div class="row2"><button class="btn ghost" data-act="syncnow">立即同步</button><button class="btn ghost" data-act="logout">登出</button></div></div>`;
 }
-/* ========== 觀察模式（老大用，只能看）========== */
-let WATCH = null;
-function renderWatch(){
-  const C = window.Cloud;
-  let body;
-  if(!WATCH || WATCH.loading) body = `<div class="card"><div class="muted">正在讀取闆娘的進度…</div></div>`;
-  else if(WATCH.err) body = `<div class="card"><div class="warn">${esc(WATCH.err)}</div></div>`;
-  else if(!WATCH.list.length) body = `<div class="card"><div class="muted" style="line-height:1.7">雲端還沒有紀錄。<br>請闆娘在她的手機用「她自己的 Google 帳號」登入一次，這裡就看得到了。</div></div>`;
-  else body = WATCH.list.map(watchCard).join('');
-  return `<div class="top"><div><div class="hello">👀 觀察模式</div><div class="date">只能看、不能改</div></div></div>
+/* ========== 日記管理 ========== */
+let MANAGER = null;
+let managerOwner = '';
+let managerTab = 'day';
+let managerLimit = 30;
+let managerBusy = false;
+const MANAGER_TABS = {day:'日記', event:'提醒', ledger:'記帳', voice:'分享筆記'};
+
+function setManagerState(state){
+  MANAGER = state;
+  const dialog = $('#managerEdit');
+  if(!state || (!state.loading && dialog && !state.list?.some(owner=>owner.id===dialog.dataset.owner))){
+    dialog?.close();
+    if(!state){ managerOwner = ''; managerTab = 'day'; managerLimit = 30; }
+  }
+  render();
+}
+
+function managerList(owner, kind){
+  if(kind==='voice') return Object.entries(owner.voice||{})
+    .filter(([date,row])=>validSpokenDiaryDate(date) && row && (Number.isFinite(row.waist) || row.note))
+    .sort(([a],[b])=>b.localeCompare(a));
+  if(kind==='day') return Object.entries(owner.data.days||{})
+    .filter(([date,day])=>validSpokenDiaryDate(date) && day && !day.del &&
+      (active(day) || day.note || day.walkDone || day.trainDone ||
+        [day.ate, day.vdone].some(items=>Object.values(items||{}).some(Boolean))))
+    .sort(([a],[b])=>b.localeCompare(a));
+  const list = owner.data[kind==='event'?'events':'ledger'];
+  return live(Array.isArray(list)?list:[]).filter(entry=>entry.id)
+    .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')) || (b.u||0)-(a.u||0))
+    .map(entry=>[entry.id,entry]);
+}
+
+function managerDayBody(row){
+  const labels = [];
+  if(Number.isFinite(row.w) && row.w>0) labels.push('體重 '+fmt(row.w)+' 公斤');
+  if(Number.isFinite(row.water)) labels.push('喝水 '+row.water+' 杯');
+  if(row.mood) labels.push('心情 '+row.mood);
+  const habits = HABITS.filter(({id})=>row.habits?.[id]).map(({t})=>t);
+  if(habits.length) labels.push('習慣 '+habits.join('、'));
+  if(row.walkDone) labels.push('已走路');
+  if(row.trainDone) labels.push('已做訓練');
+  const workouts = Object.values(row.vdone||{}).filter(Boolean).length;
+  if(workouts) labels.push('跟練影片 '+workouts+' 支');
+  const meals = Object.values(row.ate||{}).filter(Boolean).length;
+  if(meals) labels.push('已記下 '+meals+' 餐');
+  return (labels.length?`<p>${esc(labels.join(' ・ '))}</p>`:'') + (row.note?`<p class="manager-note">${esc(row.note)}</p>`:'');
+}
+
+function managerMoney(amount){
+  return 'NT$ '+Number(amount).toLocaleString('zh-TW',{maximumFractionDigits:2});
+}
+
+function managerRow(kind, key, row){
+  let title = key, body = '';
+  if(kind==='day') body = managerDayBody(row);
+  if(kind==='event'){
+    title = row.title || '提醒';
+    body = `<p>${esc(row.date)} ・ ${esc(row.time||'全天')} ・ ${esc(REP[row.rep]||REP.none)}</p>`;
+    const done = Object.keys(row.done||{}).filter(date=>row.done[date]).length;
+    if(done) body += `<p>已完成 ${done} 次</p>`;
+  }
+  if(kind==='ledger'){
+    title = `${row.type==='in'?'收入':'支出'} ${managerMoney(row.amt)}`;
+    body = `<p>${esc(row.date)} ・ ${esc(row.cat)}</p>${row.note?`<p class="manager-note">${esc(row.note)}</p>`:''}`;
+  }
+  if(kind==='voice'){
+    body = (Number.isFinite(row.waist)?`<p>腰圍 ${fmt(row.waist)} 公分</p>`:'') +
+      (row.note?`<p class="manager-note">${esc(row.note)}</p>`:'');
+  }
+  return `<li class="manager-row"><div class="manager-record"><strong>${esc(title)}</strong>${body}</div>
+    ${kind==='voice'?'':`<button class="btn ghost small" type="button" data-manager="edit" data-key="${esc(key)}" aria-label="管理 ${esc(title)}">管理</button>`}</li>`;
+}
+
+function renderManager(){
+  const user = window.Cloud.user;
+  const users = (MANAGER?.list||[]).filter(u=>u.data?.profile);
+  const owner = users.find(u=>u.id===managerOwner) || users[0];
+  let body = '';
+  if(!MANAGER || MANAGER.loading) body = '<p class="card" role="status">正在讀取授權紀錄…</p>';
+  else if(MANAGER.error) body = `<p class="card warn" role="alert">${esc(MANAGER.error)}</p>`;
+  else if(!owner) body = '<p class="card">還沒有授權紀錄。闆娘用自己的帳號登入後，可在「設定」開啟管理權限。</p>';
+  else{
+    managerOwner = owner.id;
+    const rows = managerList(owner, managerTab);
+    const noRows = managerTab==='voice' ? '目前沒有分享的腰圍或語音補充筆記。' : `還沒有${MANAGER_TABS[managerTab]}紀錄。`;
+    const choices = users.map(item=>[item.id,item.data.profile.name||'日記帳號']);
+    body = `<div class="card manager-history">
+      ${users.length>1?`<label class="f">管理的日記<select data-manager="owner">${spokenOptions(choices, owner.id)}</select></label>`:
+        `<h3>${esc(owner.data.profile.name||'日記帳號')}</h3>`}
+      <div class="seg manager-tabs" role="group" aria-label="紀錄分類">${Object.entries(MANAGER_TABS).map(([key,label])=>
+        `<button type="button" data-manager="tab" data-key="${key}" class="${key===managerTab?'on':''}" aria-pressed="${key===managerTab}">${label}</button>`).join('')}</div>
+      ${rows.length?`<ul class="manager-rows">${rows.slice(0, managerLimit).map(([key,row])=>managerRow(managerTab, key, row)).join('')}</ul>`:
+        `<p class="muted">${noRows}</p>`}
+      ${rows.length>managerLimit?`<button type="button" class="btn ghost" data-manager="more">顯示更多（${managerLimit} / ${rows.length}）</button>`:''}
+    </div>`;
+  }
+  return `<div class="top"><div><div class="hello">日記管理</div><div class="date">${esc(user?.email||'')}</div></div></div>
     ${body}
-    <div class="card"><div class="acct">${C.user.photoURL?`<img src="${esc(C.user.photoURL)}" alt="" referrerpolicy="no-referrer">`:'<span>👤</span>'}
-      <div><b>${esc(C.user.displayName||'')}</b><div class="muted">${esc(C.user.email||'')}</div></div></div>
-    <div class="row2"><button class="btn ghost" data-act="watchreload">🔄 重新整理</button><button class="btn ghost" data-act="logout">登出</button></div></div>
+    <div class="card"><div class="row2"><button class="btn ghost" type="button" data-manager="reload">重新整理</button><button class="btn ghost" type="button" data-act="logout">登出</button></div></div>
     <div class="muted" style="text-align:center;margin-bottom:20px">版本 ${APP_VERSION}</div>`;
 }
-function watchCard(u){
-  const keep = S;
-  S = JSON.parse(JSON.stringify(u.data)); S.days = S.days || {};
-  try{
-    const p = S.profile, st = streak(), s = stats();
-    const pct = s.goalLoss > 0 ? Math.min(100, Math.round(s.lost / s.goalLoss * 100)) : 0;
-    const t = u.updatedAt ? new Date(u.updatedAt) : null;
-    const rows = Array.from({length:7}, (_,i)=>{
-      const d = new Date(); d.setDate(d.getDate()-i); const k = dkey(d), day = S.days[k];
-      if(!active(day)) return `<div class="wrowx"><b>${i===0?'今天':dateLabel(k)}</b><span class="muted">還沒打卡</span></div>`;
-      const mv = (day.walkDone?1:0) + (day.trainDone?1:0) + Object.values(day.vdone||{}).filter(Boolean).length;
-      return `<div class="wrowx"><b>${i===0?'今天':dateLabel(k)}</b><span>✅ ${doneCount(day)}/${TOTAL}</span><span>⚖️ ${day.w?fmt(day.w):'－'}</span><span>💧 ${day.water||0}</span><span>🏃‍♀️ ${mv?mv+' 項':'－'}</span><span>${day.mood||''}</span></div>`;
-    }).join('');
-    return `<div class="card"><h3>💗 ${esc(p.name)} <small>${t?`最後更新 ${t.getMonth()+1}/${t.getDate()} ${pad(t.getHours())}:${pad(t.getMinutes())}`:''}</small></h3>
-      <div class="wstat"><div><small>趨勢體重</small><b>${fmt(s.cur)}</b></div><div><small>已減</small><b>${fmt(s.lost)}</b></div><div><small>離目標</small><b>${fmt(s.remain)}</b></div><div><small>連續</small><b>🔥${st.n}</b></div></div>
-      <div class="pbar"><i style="width:${pct}%"></i></div>
-      <div class="muted" style="margin:6px 0 10px">起點 ${fmt(p.start)} → 目標 ${fmt(p.goal)} kg，完成 ${pct}%${s.rate!=null?`，最近每週約 ${s.rate>0?'−':'+'}${fmt(Math.abs(s.rate))} kg`:''}</div>
-      <div class="vh" style="font-weight:800;margin-bottom:6px">最近 7 天</div>${rows}
-      <div class="muted" style="margin-top:8px">看到她有進步，記得傳個訊息誇誇她 💌</div></div>`;
-  } finally { S = keep; }
+
+function managerField(label,name,value,type='text',attrs=''){
+  return `<label class="f">${label}<input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
 }
+
+function managerSelect(label,name,options,value){
+  return `<label class="f">${label}<select name="${name}">${spokenOptions(options,value)}</select></label>`;
+}
+
+function managerEditFields(kind,row){
+  if(kind==='day') return `<div class="row2">${managerField('體重（公斤）','w',row.w,'number','inputmode="decimal" min="25.1" max="299.9" step="0.1"')}
+    ${managerField('喝水（杯）','water',row.water??0,'number','inputmode="numeric" required min="0" max="30" step="1"')}</div>
+    ${managerSelect('心情','mood',[['','未填寫'],...MOODS.map(m=>[m,m])],row.mood||'')}
+    <label class="f">心情小記<textarea name="note" rows="3">${esc(row.note)}</textarea></label>`;
+  if(kind==='event') return `${managerField('要做什麼','title',row.title,'text','required maxlength="60"')}
+    <div class="row2">${managerField('日期','date',row.date,'date','required')}${managerField('時間','time',row.time,'time')}</div>
+    ${managerSelect('重複','rep',Object.entries(REP),row.rep||'none')}`;
+  const type = row.type==='in'?'in':'out';
+  return `${managerSelect('收入或支出','type',[['out','支出'],['in','收入']],type)}
+    <div class="row2">${managerField('金額（NT$）','amt',row.amt,'number','inputmode="decimal" required min="0.01" max="100000000" step="0.01"')}
+      ${managerField('日期','date',row.date,'date','required')}</div>
+    ${managerSelect('分類','cat',CATS[type].map(([c])=>[c,c]),row.cat)}
+    ${managerField('備註','note',row.note,'text','maxlength="40"')}`;
+}
+
+function managerEdit(trigger, owner, kind, key){
+  if(managerBusy || kind==='voice' || $('#managerEdit')) return;
+  const row = managerList(owner,kind).find(([id])=>id===key)?.[1];
+  if(!row) return;
+  const dialog = document.createElement('dialog');
+  dialog.id = 'managerEdit';
+  dialog.className = 'manager-dialog';
+  dialog.dataset.owner = owner.id;
+  dialog.setAttribute('aria-labelledby','managerEditTitle');
+  dialog.innerHTML = `<form>
+    <h2 id="managerEditTitle" tabindex="-1">修改${MANAGER_TABS[kind]}${kind==='day'?' ・ '+esc(key):''}</h2>
+    ${managerEditFields(kind,row)}
+    <p class="warn" role="alert" hidden></p>
+    <button type="submit" class="btn">儲存修改</button>
+    <div class="row2"><button type="button" class="btn ghost manager-delete">刪除</button><button type="button" class="btn ghost manager-cancel">取消</button></div>
+  </form>`;
+  const form = dialog.querySelector('form'), fields = form.elements;
+  const error = dialog.querySelector('.warn');
+  const reportError = message=>{ error.textContent = message; error.hidden = false; };
+  const userId = window.Cloud.user?.uid;
+  async function submit(changes){
+    if(managerBusy) return;
+    managerBusy = true;
+    const controls = [...fields];
+    controls.forEach(control=>{ control.disabled = true; });
+    error.hidden = true;
+    try{
+      await window.Cloud.manage(owner.id, kind, key, changes, row);
+      dialog.close();
+      if(window.Cloud.user?.uid!==userId || !window.Cloud.watcher) return;
+      toast(changes?'已儲存修改':'已刪除紀錄');
+      await window.Cloud.loadManager();
+    }catch(e){
+      if(!dialog.open) return;
+      reportError(e?.code==='permission-denied'?'無法修改這筆紀錄。請重新整理，確認管理權限。':(e?.message||'儲存失敗，請再試一次。'));
+    }finally{
+      controls.forEach(control=>{ control.disabled = false; });
+      managerBusy = false;
+    }
+  }
+  if(kind==='ledger') fields.type.addEventListener('change',()=>{
+    fields.cat.innerHTML = spokenOptions(CATS[fields.type.value].map(([c])=>[c,c]),'其他');
+  });
+  form.addEventListener('submit',e=>{
+    e.preventDefault();
+    if(kind==='day'){
+      void submit({w:fields.w.value===''?null:fields.w.valueAsNumber,water:fields.water.valueAsNumber,mood:fields.mood.value||null,note:fields.note.value});
+    }else if(kind==='event'){
+      const title = fields.title.value.trim();
+      if(!title){ reportError('請填寫提醒事項。'); fields.title.focus(); return; }
+      void submit({title,date:fields.date.value,time:fields.time.value,rep:fields.rep.value});
+    }else{
+      void submit({type:fields.type.value,amt:Math.round(fields.amt.valueAsNumber*100)/100,cat:fields.cat.value,date:fields.date.value,note:fields.note.value.trim()});
+    }
+  });
+  dialog.querySelector('.manager-cancel').addEventListener('click',()=>dialog.close());
+  dialog.querySelector('.manager-delete').addEventListener('click',()=>{
+    const description = kind==='day'?`${key} 的日記`:kind==='event'?`提醒「${row.title}」`:`${row.date} 的 ${managerMoney(row.amt)} 記帳`;
+    if(confirm(`確定刪除${description}？`)) void submit(null);
+  });
+  dialog.addEventListener('cancel',e=>{ if(managerBusy) e.preventDefault(); });
+  dialog.addEventListener('close',()=>{ dialog.remove(); if(trigger.isConnected) trigger.focus(); });
+  document.body.appendChild(dialog);
+  dialog.showModal();
+  dialog.querySelector('h2').focus();
+}
+
+document.addEventListener('change',e=>{
+  if(e.target.dataset.manager!=='owner' || !window.Cloud?.watcher) return;
+  managerOwner = e.target.value;
+  managerLimit = 30;
+  render();
+});
+
+document.addEventListener('click',e=>{
+  const button = e.target.closest('button[data-manager]');
+  if(!button || !window.Cloud?.watcher || managerBusy) return;
+  const {manager:action, key} = button.dataset;
+  if(action==='reload') { void window.Cloud.loadManager(); return; }
+  if(action==='tab' && Object.keys(MANAGER_TABS).includes(key)){
+    managerTab = key;
+    managerLimit = 30;
+    render();
+    $(`button[data-manager="tab"][data-key="${key}"]`)?.focus();
+  }
+  if(action==='more'){
+    managerLimit += 30;
+    render();
+    $('button[data-manager="more"]')?.focus();
+  }
+  if(action==='edit'){
+    const owner = MANAGER?.list?.find(u=>u.id===managerOwner);
+    if(owner) managerEdit(button,owner,managerTab,key);
+  }
+});
+
 function loginTip(){
   const C = window.Cloud;
   if(!C || C.user || (S.loginTipUntil||0) > Date.now()) return '';
   return `<div class="logintip">
     <div class="lt-t">☁️ 用 Google 登入，紀錄就不怕不見</div>
-    <div class="muted" style="margin:4px 0 10px">換手機、刪掉 App 都能找回來，只有妳和老大看得到（老大只能看）</div>
+    <div class="muted" style="margin:4px 0 10px">換手機或清除裝置資料後，可以用原本的 Google 帳號取回已同步的紀錄。</div>
     ${googleBtn('用 Google 登入')}
     ${C.error ? `<div class="warn" style="margin:10px 0 0">${esc(C.error)}</div>` : ''}
     <button class="later" data-act="later">之後再說</button></div>`;
@@ -2169,7 +2520,7 @@ document.addEventListener('click', e=>{
 /* ========== 主繪製 ========== */
 function render(){
   const app = $('#app');
-  if(window.Cloud && Cloud.watcher){ clearSpokenDrafts(); $('#tabs').classList.add('hide'); app.innerHTML = renderWatch(); return; }
+  if(window.Cloud && Cloud.watcher){ clearSpokenDrafts(); $('#tabs').classList.add('hide'); app.innerHTML = renderManager(); return; }
   if(section==='diary' && tab!=='today' && spokenMic){
     endSpokenMic(); spokenDraft().status = '';
   }
@@ -2272,11 +2623,13 @@ document.addEventListener('click', e=>{
           if(confirm('用備份檔取代目前的資料？')){
             const {privateSpokenRecords, ...diary} = d;
             if(privateSpokenRecords !== undefined) localStorage.setItem(SPOKEN_RECORDS_KEY, JSON.stringify(cleanSpokenRecords(privateSpokenRecords)));
-            clearSpokenDrafts(); S = diary; save(); render(); toast('還原成功 ✓');
+            clearSpokenDrafts(); S = diary; save({preserveTombstones:true});
+            if(privateSpokenRecords !== undefined) window.dispatchEvent(new Event('qq-spoken-saved'));
+            render(); toast('還原成功 ✓');
           } }
           catch(_){ toast('這個檔案看不懂，確定是備份檔嗎？'); } };
         rd.readAsText(file); }; f.click(); break; }
-    case 'reset': { if(confirm('確定要清除所有紀錄、重新開始嗎？（無法復原，建議先下載備份）')){ localStorage.removeItem(KEY); localStorage.removeItem(SPOKEN_RECORDS_KEY); clearSpokenDrafts(); S = load(); tab='today'; render(); if(window.Cloud && Cloud.user) Cloud.wipe(); } break; }
+    case 'reset': { if(confirm('確定要清除所有紀錄、重新開始嗎？（無法復原，建議先下載備份）')){ localStorage.removeItem(KEY); localStorage.removeItem(SPOKEN_RECORDS_KEY); clearSpokenDrafts(); S = load(); savedDayContents = dayContents(S.days); tab='today'; render(); if(window.Cloud && Cloud.user) Cloud.wipe(); } break; }
     case 'swap': { day.swap = day.swap||{}; day.swap[el.dataset.m] = (day.swap[el.dataset.m]||0) + 1; save(); render(); break; }
     case 'eat': { day.ate = day.ate||{}; day.ate[el.dataset.m] = !day.ate[el.dataset.m]; save(); render(); break; }
     case 'walkdone': { day.walkDone = !day.walkDone; syncWorkout(day); if(!day.habits.walk) day.perfect=false; afterProgress(); break; }
@@ -2297,7 +2650,6 @@ document.addEventListener('click', e=>{
     case 'ics': makeICS(); break;
     case 'share': shareToday(); break;
     case 'login': { if(window.Cloud) Cloud.login(); break; }
-    case 'watchreload': { if(window.Cloud) Cloud.loadWatch(); break; }
     case 'logout': { if(Cloud.watcher){ Cloud.logout(); break; } if(confirm('登出後，這支手機上的紀錄還會留著，只是不再同步到雲端。確定登出？')){ clearSpokenDrafts(); Cloud.logout(); } break; }
     case 'later': { S.loginTipUntil = Date.now() + 3*864e5; save(); $('#loginTip').innerHTML=''; toast('好～3 天後再提醒妳，也可以到「設定」登入'); break; }
     case 'syncnow': { Cloud.sync(); break; }
@@ -2448,7 +2800,7 @@ function confetti(set){
 }
 
 // 自動更新：打開或回到 App 時，偷偷問伺服器有沒有新版，有就換上
-const APP_VERSION = '20261127-1';
+const APP_VERSION = '20261127-2';
 async function checkUpdate(){
   try{
     const r = await fetch(location.pathname + '?check=' + Date.now(), {cache:'no-store'});
@@ -2480,7 +2832,7 @@ render();
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut }
   from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
+import { getFirestore, doc, getDocFromServer, getDocsFromServer, collection, query, where, runTransaction } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 
 // 這組是 Firebase 網頁設定（本來就是公開的，安全靠資料庫規則把關）
 const app = initializeApp({
@@ -2504,80 +2856,271 @@ const MSG = {
 };
 const errText = e => MSG[e && e.code] || ('登入／同步出了點問題：' + ((e && (e.code || e.message)) || '未知錯誤'));
 
-let pushTimer = null;
+const emptyAccess = () => ({manage:false, shareSpoken:false, shareDevice:''});
+const ACCESS_COLLECTION = 'qUserManagement';
+const VOICE_DEVICE_KEY = 'qingqing-diary-sharing-device';
+const rootRef = uid => doc(db, 'users', uid);
+const privateRef = (uid, name='main') => doc(db, 'users', uid, 'private', name);
+const grantRef = uid => doc(db, ACCESS_COLLECTION, uid);
+const stampAfter = (...values) => Math.max(Date.now(), ...values.map(v=>Number.isFinite(v) ? v+1 : 0));
+const readData = snap => snap.exists() ? JSON.parse(snap.data().data || '{}') : {};
+const envelopeStamp = snap => snap.data()?.updatedAt || 0;
+const isManager = user => Boolean(user?.emailVerified && QQ.watchers.includes(user.email?.toLowerCase()) &&
+  user.providerData.some(p=>p.providerId==='google.com'));
+const deviceId = () => localStorage.getItem(VOICE_DEVICE_KEY) || '';
+
+let pushTimer, voiceTimer;
+let syncAgain = false, managerLoad = 0, session = 0, accessRevision = 0;
+let managerRows = [];
+
+function voicePayload(records, device){
+  return {data:JSON.stringify(records), updatedAt:Date.now(), device};
+}
+
+function mergeOwnerSnapshot(publicDoc, privateDoc){
+  const data = readData(publicDoc);
+  const privateData = readData(privateDoc);
+  return {...data, events:privateData.events||[], ledger:privateData.ledger||[]};
+}
+
+function writeOwnerSnapshot(tx, publicDoc, privateDoc, value, user){
+  const {events, ledger, ...diary} = value;
+  const publicData = JSON.stringify(diary);
+  const privateData = JSON.stringify({events:events||[], ledger:ledger||[]});
+  if(publicData !== publicDoc.data()?.data){
+    tx.set(publicDoc.ref, {data:publicData, updatedAt:stampAfter(envelopeStamp(publicDoc)), email:user.email||''});
+  }
+  if(privateData !== privateDoc.data()?.data){
+    tx.set(privateDoc.ref, {data:privateData, updatedAt:stampAfter(envelopeStamp(privateDoc))});
+  }
+}
+
+function editManagedData(data, kind, key, changes, stamp, expected){
+  if(kind==='day'){
+    const day = data.days?.[key];
+    if(!day || JSON.stringify(day) !== JSON.stringify(expected)) throw new Error('紀錄已有更新，請重新整理後再修改。');
+    if(changes===null){
+      data.days[key] = {water:0, habits:{}, u:stamp, del:true};
+      return;
+    }
+    const {w, water, mood, note} = changes;
+    if(!(w===null || (Number.isFinite(w) && w>25 && w<300)) ||
+      !Number.isInteger(water) || water<0 || water>30 ||
+      typeof note!=='string' || (mood!==null && !MOODS.includes(mood))) throw new Error('請確認日記欄位。');
+    const next = {...day, water, mood, note, u:stamp};
+    if(w===null) delete next.w; else next.w = r1(w);
+    if(w===null || water<WATER_GOAL) next.perfect = false;
+    data.days[key] = next;
+    return;
+  }
+  const group = kind==='event' ? 'events' : 'ledger';
+  const index = data[group]?.findIndex(entry=>entry.id===key) ?? -1;
+  const original = data[group]?.[index];
+  if(!original || original.del || JSON.stringify(original) !== JSON.stringify(expected)){
+    throw new Error('紀錄已有更新，請重新整理後再修改。');
+  }
+  if(changes===null){
+    data[group][index] = {...original, del:true, u:stamp};
+    return;
+  }
+  if(!validSpokenDiaryDate(changes.date)) throw new Error('請確認記錄日期。');
+  if(kind==='event'){
+    const {title, date, time, rep} = changes;
+    if(typeof title!=='string' || !title.trim() || title.length>60 ||
+      (time!=='' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) || !Object.keys(REP).includes(rep)){
+      throw new Error('請確認提醒事項、時間和重複方式。');
+    }
+    data[group][index] = {...original, title, date, time, rep, u:stamp};
+    return;
+  }
+  const {type, amt, cat, date, note} = changes;
+  if(!(Number.isFinite(amt) && amt>0 && amt<=1e8) || typeof note!=='string' || note.length>40 ||
+    !Array.isArray(CATS[type]) || !CATS[type].some(([label])=>label===cat)) throw new Error('請確認記帳金額和分類。');
+  data[group][index] = {...original, type, amt, cat, date, note, u:stamp};
+}
+
 const Cloud = {
-  user: null, busy: false, lastSync: null, error: '', watcher: false,
-  async loadWatch(){
-    QQ.setWatch({loading:true});
+  user:null, watcher:false, busy:false, lastSync:null, error:'', access:null, accessError:'',
+  async loadManager(){
+    if(!Cloud.watcher) return;
+    const call = ++managerLoad, generation = session;
+    const current = ()=>session===generation && managerLoad===call && Cloud.watcher;
+    QQ.setManager({loading:true});
     try{
-      const snap = await getDocs(collection(db, 'users'));
-      const list = [];
-      snap.forEach(d=>{
-        if(d.id === Cloud.user.uid) return;
-        const v = d.data();
-        try{ const data = JSON.parse(v.data || '{}'); if(data.profile) list.push({email: v.email || '', updatedAt: v.updatedAt || 0, data}); }catch(_){}
-      });
-      list.sort((a,b)=>b.updatedAt - a.updatedAt);
-      QQ.setWatch({list});
-    }catch(e){ QQ.setWatch({err: errText(e)}); }
-  },
-  async login(){
-    Cloud.error = '';
-    try { await signInWithPopup(auth, provider); }
-    catch(e){
-      if(e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
-      if(e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment'){
-        return signInWithRedirect(auth, provider);
-      }
-      Cloud.error = errText(e); QQ.refresh();
+      const grants = await getDocsFromServer(query(collection(db, ACCESS_COLLECTION), where('manage','==',true)));
+      const result = await Promise.allSettled(grants.docs.map(async grant=>{
+        const id = grant.id;
+        const [diary, records, voice] = await Promise.all([
+          getDocFromServer(rootRef(id)),
+          getDocFromServer(privateRef(id)),
+          grant.data().shareSpoken ? getDocFromServer(privateRef(id,'voiceShare')).catch(error=>{
+            if(error.code!=='permission-denied') throw error;
+            return null;
+          }) : null,
+        ]);
+        const data = mergeOwnerSnapshot(diary, records);
+        return data.profile ? {id, updatedAt:envelopeStamp(diary), data, voice:voice ? readData(voice) : null} : null;
+      }));
+      if(!current()) return;
+      managerRows = result.flatMap(item=>item.status==='fulfilled' && item.value ? [item.value] : []);
+      managerRows.sort((a,b)=>b.updatedAt-a.updatedAt);
+      const failure = result.find(item=>item.status==='rejected' && item.reason.code!=='permission-denied');
+      QQ.setManager({list:managerRows, error:!managerRows.length && failure ? errText(failure.reason) : ''});
+    }catch(error){
+      if(current()){ managerRows=[]; QQ.setManager({error:errText(error)}); }
     }
   },
-  async wipe(){ try{ await setDoc(Cloud.pref(), { data: '{}', updatedAt: Date.now() }); await setDoc(Cloud.ref(), { data: '{}', updatedAt: Date.now(), email: Cloud.user.email || '' }); }catch(e){ Cloud.error = errText(e); } },
-  async logout(){ await signOut(auth); Cloud.lastSync = null; },
-  ref(){ return doc(db, 'users', Cloud.user.uid); },
-  pref(){ return doc(db, 'users', Cloud.user.uid, 'private', 'main'); },   // 提醒和記帳：只有本人讀得到
-  async sync(){
-    if(!Cloud.user || Cloud.busy) return;
-    if(Cloud.watcher) return Cloud.loadWatch();
-    Cloud.busy = true; Cloud.error = ''; QQ.refresh();
-    try{
-      const [snap, psnap] = await Promise.all([getDoc(Cloud.ref()), getDoc(Cloud.pref()).catch(()=>null)]);
-      if(snap.exists() && snap.data().data){
-        const remote = JSON.parse(snap.data().data);
-        if(psnap && psnap.exists() && psnap.data().data){ const pv = JSON.parse(psnap.data().data); remote.events = pv.events || []; remote.ledger = pv.ledger || []; }
-        const merged = QQ.merge(QQ.get(), remote);
-        if(merged !== QQ.get()) QQ.replace(merged);
-      }
-      await Cloud.push(true);
-    }catch(e){ Cloud.error = errText(e); }
-    Cloud.busy = false; QQ.refresh();
+  async manage(owner, kind, key, changes, original){
+    if(!Cloud.watcher || !['day','event','ledger'].includes(kind)) throw new Error('無法變更這筆紀錄。');
+    const generation = session;
+    const row = managerRows.find(item=>item.id===owner);
+    if(!row) throw new Error('請重新整理授權紀錄。');
+    const expected = original || (kind==='day' ? row.data.days?.[key] :
+      (kind==='event' ? row.data.events : row.data.ledger).find(entry=>entry.id===key));
+    const target = kind==='day' ? rootRef(owner) : privateRef(owner);
+    await runTransaction(db, async tx=>{
+      const snap = await tx.get(target);
+      if(session!==generation || !Cloud.watcher || !snap.exists()) throw new Error('授權紀錄已變更。');
+      const data = readData(snap);
+      const updatedAt = stampAfter(envelopeStamp(snap), expected?.u);
+      editManagedData(data,kind,key,changes,updatedAt,expected);
+      tx.update(target,{data:JSON.stringify(data),updatedAt});
+    });
   },
-  async push(inside){
-    const d = QQ.get();
-    if(!Cloud.user || Cloud.watcher || !d.profile) return;
+  canShareOnThisDevice(){
+    return !!(Cloud.user && Cloud.access?.shareSpoken && deviceId()===Cloud.access.shareDevice);
+  },
+  async setAccess(manage, shareSpoken){
+    const user=Cloud.user, generation=session;
+    if(!user || Cloud.watcher) throw new Error('請用日記本人的帳號登入。');
+    ++accessRevision;
+    if(shareSpoken && !deviceId()) localStorage.setItem(VOICE_DEVICE_KEY, crypto.randomUUID());
+    const access = {manage, shareSpoken, shareDevice:shareSpoken?deviceId():''};
+    const grant = grantRef(user.uid), voice = privateRef(user.uid,'voiceShare');
+    await runTransaction(db, async tx=>{
+      await tx.get(grant);
+      if(generation!==session) throw new Error('帳號已變更。');
+      tx.set(grant, access);
+      if(shareSpoken) tx.set(voice, voicePayload(QQ.spokenRecords(),access.shareDevice));
+      else tx.delete(voice);
+    });
+    if(generation!==session) return false;
+    ++accessRevision;
+    Cloud.access=access; Cloud.accessError=''; QQ.refresh();
+    if(shareSpoken) Cloud.publishSharedVoice();
+    return true;
+  },
+  async publishSharedVoice(){
+    const user=Cloud.user, generation=session;
+    if(!user || Cloud.watcher || !Cloud.canShareOnThisDevice()) return;
     try{
-      const { events, ledger, ...pub } = d;
-      await setDoc(Cloud.ref(), { data: JSON.stringify(pub), updatedAt: d.updatedAt || Date.now(), email: Cloud.user.email || '' });
-      await setDoc(Cloud.pref(), { data: JSON.stringify({ events: events || [], ledger: ledger || [] }), updatedAt: d.updatedAt || Date.now() });
-      Cloud.lastSync = new Date(); Cloud.error = '';
-    }catch(e){ Cloud.error = errText(e); if(inside) throw e; }
-    if(!inside) QQ.refresh();
+      const grant = grantRef(user.uid), voice = privateRef(user.uid,'voiceShare');
+      const device=deviceId();
+      await runTransaction(db, async tx=>{
+        const access = (await tx.get(grant)).data();
+        if(generation!==session || !access?.manage || !access.shareSpoken || access.shareDevice!==device) return;
+        const snapshot = await tx.get(voice);
+        if(generation!==session) return;
+        const value = voicePayload(QQ.spokenRecords(),device);
+        if(value.data!==snapshot.data()?.data) tx.set(voice,value);
+      });
+    }catch(error){ if(generation===session){ Cloud.error=errText(error); QQ.refresh(); } }
+  },
+  async login(){
+    Cloud.error='';
+    try{ await signInWithPopup(auth,provider); }
+    catch(error){
+      if(['auth/popup-closed-by-user','auth/cancelled-popup-request'].includes(error.code)) return;
+      if(['auth/popup-blocked','auth/operation-not-supported-in-this-environment'].includes(error.code)){
+        return signInWithRedirect(auth,provider);
+      }
+      Cloud.error=errText(error); QQ.refresh();
+    }
+  },
+  async wipe(){
+    const user=Cloud.user;
+    if(!user || Cloud.watcher) return;
+    const generation=++session;
+    clearTimeout(pushTimer); clearTimeout(voiceTimer); syncAgain=false;
+    Cloud.busy=true; QQ.refresh();
+    try{
+      await runTransaction(db, async tx=>{
+        const target = rootRef(user.uid);
+        const main = privateRef(user.uid);
+        const grant = grantRef(user.uid);
+        await Promise.all([tx.get(target),tx.get(main),tx.get(grant)]);
+        if(session!==generation) throw new Error('帳號已變更。');
+        const updatedAt=Date.now();
+        tx.set(target,{data:'{}',updatedAt,email:user.email||''});
+        tx.set(main,{data:'{}',updatedAt});
+        tx.set(grant,emptyAccess());
+        tx.delete(privateRef(user.uid,'voiceShare'));
+      });
+      if(session===generation){ Cloud.access=emptyAccess(); Cloud.accessError=''; Cloud.error=''; }
+    }catch(error){ if(session===generation) Cloud.error=errText(error); }
+    finally{
+      if(session===generation){ Cloud.busy=false; QQ.refresh(); if(syncAgain) Cloud.sync(); }
+    }
+  },
+  async logout(){ await signOut(auth); },
+  async sync(){
+    const user=Cloud.user;
+    if(!user) return;
+    if(Cloud.watcher) return Cloud.loadManager();
+    if(Cloud.busy){ syncAgain=true; return; }
+    const generation=session;
+    const local=JSON.parse(JSON.stringify(QQ.get()));
+    Cloud.busy=true; Cloud.error=''; syncAgain=false; QQ.refresh();
+    try{
+      const accessVersion=accessRevision;
+      const accessRequest=getDocFromServer(grantRef(user.uid)).then(snap=>{
+        if(session===generation && accessVersion===accessRevision){ Cloud.access=snap.data()||emptyAccess(); Cloud.accessError=''; QQ.refresh(); }
+      }).catch(error=>{
+        if(session===generation && accessVersion===accessRevision){ Cloud.access=null; Cloud.accessError=errText(error); QQ.refresh(); }
+      });
+      const committed=await runTransaction(db, async tx=>{
+        const [diary,records]=await Promise.all([tx.get(rootRef(user.uid)),tx.get(privateRef(user.uid))]);
+        if(session!==generation) throw new Error('帳號已變更。');
+        const merged=QQ.merge(local,mergeOwnerSnapshot(diary,records));
+        if(merged?.profile) writeOwnerSnapshot(tx,diary,records,merged,user);
+        return merged;
+      });
+      if(session!==generation) return;
+      const latest=QQ.get();
+      if(committed?.profile) QQ.replace(latest.updatedAt===local.updatedAt ? committed : QQ.merge(latest,committed));
+      await accessRequest;
+      if(session===generation){
+        Cloud.lastSync=new Date();
+        Cloud.publishSharedVoice();
+      }
+    }catch(error){ if(session===generation) Cloud.error=errText(error); }
+    finally{
+      if(session===generation){
+        Cloud.busy=false; QQ.refresh();
+        if(syncAgain) Cloud.sync();
+      }
+    }
   },
 };
-window.Cloud = Cloud;
+window.Cloud=Cloud;
 
-// 每次存檔後 1.5 秒自動上傳（連續點很多下只傳一次）
-window.addEventListener('qq-saved', ()=>{
+window.addEventListener('qq-saved',()=>{
   if(!Cloud.user || Cloud.watcher) return;
-  clearTimeout(pushTimer); pushTimer = setTimeout(()=>Cloud.push(), 1500);
+  clearTimeout(pushTimer); pushTimer=setTimeout(()=>Cloud.sync(),1500);
+});
+window.addEventListener('qq-spoken-saved',()=>{
+  if(!Cloud.user || Cloud.watcher) return;
+  clearTimeout(voiceTimer); voiceTimer=setTimeout(()=>Cloud.publishSharedVoice(),400);
 });
 
-getRedirectResult(auth).catch(e=>{ Cloud.error = errText(e); QQ.refresh(); });
+getRedirectResult(auth).catch(error=>{ Cloud.error=errText(error); QQ.refresh(); });
 onAuthStateChanged(auth, user=>{
-  const wasWatcher = Cloud.watcher;
-  Cloud.user = user;
-  Cloud.watcher = !!(user && user.email && QQ.watchers.includes(user.email.toLowerCase()));
-  if(wasWatcher !== Cloud.watcher) QQ.render(); else QQ.refresh();
+  const wasManager=Cloud.watcher;
+  ++session; ++managerLoad; syncAgain=false; managerRows=[];
+  clearTimeout(pushTimer); clearTimeout(voiceTimer);
+  Cloud.user=user; Cloud.watcher=isManager(user); Cloud.busy=false;
+  Cloud.access=null; Cloud.accessError=''; Cloud.lastSync=null;
+  if(wasManager || Cloud.watcher) QQ.setManager(null); else QQ.refresh();
   if(user) Cloud.sync();
 });
 QQ.refresh();
