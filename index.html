@@ -38,6 +38,11 @@ input,select,textarea{font:inherit;color:inherit}
 .card h3{margin:0 0 10px;font-size:16px;display:flex;justify-content:space-between;align-items:center}
 .card h3 small{font-weight:500;color:var(--soft);font-size:12px}
 .muted{color:var(--soft);font-size:13px}
+.manager-entry-link{display:block;margin-top:12px;color:var(--ink);font-size:14px;text-align:center}
+.shortcut-help{margin-top:12px;color:var(--ink);font-size:14px;line-height:1.7;text-align:left}
+.shortcut-help summary{cursor:pointer;font-weight:700}
+.shortcut-help p{margin:8px 0}
+.shortcut-help input{width:100%;padding:8px;border:1px solid var(--line);border-radius:9px;background:#fff}
 
 /* pet */
 .petcard{background:linear-gradient(180deg,#fff0e8 0%,#ffffff 85%);text-align:center;position:relative;overflow:hidden}
@@ -289,6 +294,17 @@ label.f input:focus,label.f textarea:focus{border-color:var(--peach)}
 .hide{display:none!important}
 /* 日記管理 */
 .manager-tabs button{flex:1;min-height:44px;padding:6px 3px}
+.manager-full-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:8px 0 12px}
+.manager-full-nav button{min-width:0}
+.manager-full :disabled{opacity:1;cursor:default}
+.manager-full .mini:disabled{background:#faf5f2}
+.manager-full .lit .lt small{white-space:pre-wrap;overflow-wrap:anywhere}
+.manager-full .rm{justify-content:space-between}
+.manager-full .rm dd{margin:0}
+.manager-full .meal .mini,.manager-full .pit .mini{height:auto;line-height:1.45;padding:5px 8px;flex:none}
+.manager-full .manager-note{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.manager-owner-meta{font-size:13px;color:var(--soft);margin:4px 2px 10px}
+.manager-details summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}
 .manager-rows{list-style:none;margin:4px 0 0;padding:0}
 .manager-row{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}
 .manager-row:last-child{border-bottom:0;padding-bottom:0}
@@ -568,6 +584,9 @@ function nudge(day){
 
 let S = load();
 let savedDayContents = dayContents(S.days);
+const managementEntry = new URLSearchParams(location.search).get('mode')==='manage';
+const managementUrl = new URL('./?mode=manage', location.href).href;
+const homeApp = navigator.standalone===true || window.matchMedia('(display-mode: standalone)').matches;
 let tab = 'today';
 let chartRange = 30;
 let petLine = null;
@@ -634,9 +653,9 @@ window.QQ = {
   setManager(state){ setManagerState(state); },
   render(){ render(); },
   refresh(){ // 只更新雲端那一塊，不打斷正在填的表單
-    if(window.Cloud && Cloud.watcher) return render();
+    if(managementEntry || window.Cloud?.watcher) return render();
     const g = $('#gArea'), c = $('#cloudArea');
-    if(g) g.innerHTML = googleBtn('用 Google 登入，取回我的紀錄');
+    if(g) g.innerHTML = onboardLogin();
     if(c) c.innerHTML = cloudCard();
     const l = $('#loginTip'); if(l) l.innerHTML = loginTip();
     updateOwnerManagementAccess();
@@ -1670,7 +1689,7 @@ function accessories(){
 }
 
 /* ========== 畫面：今天 ========== */
-function renderToday(){
+function renderToday(readOnly = false, sharedVoice = null){
   const p = S.profile, day = today(), dc = doneCount(day), st = streak();
   const h = new Date().getHours();
   const hi = h<11?'早安':h<14?'午安':h<18?'午後好':'晚安';
@@ -1684,16 +1703,16 @@ function renderToday(){
   return `
   <div class="top">
     <div><div class="hello">${hi}，${esc(p.name)} 👋</div><div class="date">${wd.getMonth()+1} 月 ${wd.getDate()} 日 星期${wk}</div></div>
-    <div style="text-align:right"><div class="streak" title="連續打卡天數">🔥 ${st.n} 天</div><div id="cloudDot" class="muted" style="font-size:11px;margin-top:4px" data-tab="settings"></div></div>
+    <div style="text-align:right"><div class="streak" title="連續打卡天數">🔥 ${st.n} 天</div>${readOnly?'':'<div id="cloudDot" class="muted" style="font-size:11px;margin-top:4px" data-tab="settings"></div>'}</div>
   </div>
   <div id="loginTip">${loginTip()}</div>
-  ${todayPlanBar()}
+  ${todayPlanBar(readOnly)}
   ${nudge(day) ? `<div class="nudge">${nudge(day)}</div>` : ''}
-  ${renderSpokenComposer()}
+  ${readOnly?'':renderSpokenComposer()}
 
   <div class="card petcard ${acc.rainbow?'rainbow':''}">
     <div class="bubble" id="bubble">${esc(petLine)}</div>
-    <div class="stage" data-act="pet">${petSVG(mood==='mid'?'normal':mood)}${acc.html}</div>
+    <div class="stage" ${readOnly?'':'data-act="pet"'}>${petSVG(mood==='mid'?'normal':mood)}${acc.html}</div>
     <div class="ringrow">
       <div class="dots">${Array.from({length:TOTAL},(_,i)=>`<i class="${i<dc?'on':''}"></i>`).join('')}</div>
       <b>${dc}/${TOTAL}</b>
@@ -1707,9 +1726,9 @@ function renderToday(){
   <div class="card">
     <h3>⚖️ 今天體重 <small>早上起床、上完廁所量最準</small></h3>
     ${day.w ? `
-      <div class="done-line"><span>已記錄 ✓</span><b>${fmt(day.w)} <small class="muted">kg</small></b><button class="btn small ghost" data-act="editw">修改</button></div>
+      <div class="done-line"><span>已記錄 ✓</span><b>${fmt(day.w)} <small class="muted">kg</small></b>${readOnly?'':'<button class="btn small ghost" data-act="editw">修改</button>'}</div>
       <div class="muted" style="margin-top:8px">${trendMsg()}</div>`
-    : `
+    : readOnly ? '<p class="muted">今天沒有已同步的體重紀錄。</p>' : `
       <div class="wrow">
         <button class="step" data-act="wm">−</button>
         <input class="wnum" id="wIn" type="number" inputmode="decimal" step="0.1" value="${fmt(lastW)}">
@@ -1719,27 +1738,27 @@ function renderToday(){
       <button class="btn" data-act="savew">記錄體重</button>`}
   </div>
 
-  ${mealCard(day)}
-  ${workoutCard(day)}
+  ${mealCard(day,readOnly)}
+  ${workoutCard(day,readOnly)}
 
   <div class="card">
     <h3>💧 喝水 <small>${day.water||0} / ${WATER_GOAL} 杯（一杯約 250ml）</small></h3>
-    <div class="cups">${Array.from({length:WATER_GOAL},(_,i)=>`<button class="cup ${i<(day.water||0)?'on':''}" data-act="cup" data-i="${i}" aria-label="第${i+1}杯"></button>`).join('')}</div>
+    <div class="cups">${Array.from({length:WATER_GOAL},(_,i)=>`<button class="cup ${i<(day.water||0)?'on':''}" ${readOnly?'disabled':'data-act="cup"'} data-i="${i}" aria-label="第${i+1}杯"></button>`).join('')}</div>
   </div>
 
   <div class="card">
-    <h3>✨ 小習慣 <small>點一下就打勾</small></h3>
-    <div class="habits">${HABITS.map(hb=>`<button class="habit ${day.habits[hb.id]?'on':''}" data-act="habit" data-id="${hb.id}"><span class="e">${hb.e}</span><span class="t">${hb.t}</span></button>`).join('')}</div>
+    <h3>✨ 小習慣 ${readOnly?'':'<small>點一下就打勾</small>'}</h3>
+    <div class="habits">${HABITS.map(hb=>`<button class="habit ${day.habits[hb.id]?'on':''}" ${readOnly?'disabled':'data-act="habit"'} data-id="${hb.id}"><span class="e">${hb.e}</span><span class="t">${hb.t}</span></button>`).join('')}</div>
   </div>
 
   <div class="card">
-    <h3>💭 今天心情 <small>可以不寫</small></h3>
-    <div class="moods">${MOODS.map((m,i)=>`<button class="mood ${day.mood===m?'on':''}" data-act="mood" data-m="${m}">${m}</button>`).join('')}</div>
-    <textarea id="note" rows="2" placeholder="想說的話、今天吃了什麼……（只有妳看得到）">${esc(day.note||'')}</textarea>
+    <h3>💭 今天心情 ${readOnly?'':'<small>可以不寫</small>'}</h3>
+    <div class="moods">${MOODS.map(m=>`<button class="mood ${day.mood===m?'on':''}" ${readOnly?'disabled':'data-act="mood"'} data-m="${m}">${m}</button>`).join('')}</div>
+    ${readOnly?`<p class="manager-note ${day.note?'':'muted'}">${esc(day.note||'今天沒有已同步的心情小記。')}</p>`:`<textarea id="note" rows="2" placeholder="想說的話、今天吃了什麼……">${esc(day.note||'')}</textarea>`}
   </div>
-  <button class="btn ghost" data-act="share">📤 回報今天成果給老大</button>`;
+  ${readOnly ? sharedVoice ? `<div class="card"><h3>分享筆記</h3>${Number.isFinite(sharedVoice.waist)?`<p>腰圍 ${fmt(sharedVoice.waist)} 公分</p>`:''}${sharedVoice.note?`<p class="manager-note">${esc(sharedVoice.note)}</p>`:''}</div>` : '' : '<button class="btn ghost" data-act="share">📤 回報今天成果給老大</button>'}`;
 }
-function mealCard(day){
+function mealCard(day, readOnly = false){
   const kcal = kcalTarget();
   const sum = MEALS.reduce((a,m,i)=>a+mealFor(day,m,i)[1],0);
   return `<div class="card">
@@ -1747,13 +1766,13 @@ function mealCard(day){
     ${MEALS.map((m,i)=>{ const [name,k]=mealFor(day,m,i); const on=day.ate&&day.ate[m.id];
       return `<div class="meal ${on?'eaten':''}"><span class="me">${m.e}</span>
         <div class="mt"><b>${m.n}・約 ${k} 大卡</b>${esc(name)}</div>
-        <button class="mini" data-act="swap" data-m="${m.id}" title="換一個">換</button>
-        <button class="mini ${on?'on':''}" data-act="eat" data-m="${m.id}" title="吃了">✓</button></div>`; }).join('')}
+        ${readOnly ? `<span class="mini ${on?'on':''}">${on?'已記錄':'未記錄'}</span>` : `<button class="mini" data-act="swap" data-m="${m.id}" title="換一個">換</button>
+        <button class="mini ${on?'on':''}" data-act="eat" data-m="${m.id}" title="吃了">✓</button>`}</div>`; }).join('')}
     ${kcal - sum >= 150 ? `<div class="muted" style="margin-top:6px">菜單合計約 ${sum} 大卡，妳還可以多一份水果、一顆蛋或一杯無糖豆漿 👍</div>` : ''}
     <div class="tip">💡 ${MEAL_TIPS[dayIndex() % MEAL_TIPS.length]}</div>
   </div>`;
 }
-function workoutCard(day){
+function workoutCard(day, readOnly = false){
   const p = workoutPlan();
   const steps = p.rounds * p.moves.length;
   const mins = Math.round((steps*p.work + (steps-1)*p.rest)/60);
@@ -1761,18 +1780,18 @@ function workoutCard(day){
     <h3>🏃‍♀️ 今日運動 <small>第 ${p.week} 週・${p.title}</small></h3>
     ${p.walk ? `<div class="wk ${day.walkDone?'on':''}"><span class="e">🚶‍♀️</span>
       <div class="tx">走路或快走 <b>${p.walk} 分鐘</b><br><small>可以拆成 2～3 次，飯後散步也算</small></div>
-      <button class="mini ${day.walkDone?'on':''}" data-act="walkdone">✓</button></div>` : ''}
+      <button class="mini ${day.walkDone?'on':''}" ${readOnly?'disabled':'data-act="walkdone"'}>${readOnly?(day.walkDone?'已完成':'未完成'):'✓'}</button></div>` : ''}
     ${p.moves.length ? `<div class="wk ${day.trainDone?'on':''}"><span class="e">${p.walk?'💪':'🧘‍♀️'}</span>
       <div class="tx">${p.walk?'居家肌力':'放鬆伸展'} <b>${p.rounds} 輪・約 ${mins} 分鐘</b>
         <div class="chips">${p.moves.map(id=>`<span>${MOVES[id].e} ${MOVES[id].n}</span>`).join('')}</div></div>
-      <button class="mini ${day.trainDone?'on':''}" data-act="traindone">✓</button></div>
-      <button class="btn" data-act="train">▶ 跟著圓圓一起做</button>` : `<div class="muted">今天不用做肌力，走完路就完成囉！</div>`}
-    <div class="vids"><div class="vh">🎬 今日跟練影片 <button class="mini" data-act="swapall">🔄 全部換一批</button></div>
+      <button class="mini ${day.trainDone?'on':''}" ${readOnly?'disabled':'data-act="traindone"'}>${readOnly?(day.trainDone?'已完成':'未完成'):'✓'}</button></div>
+      ${readOnly?'':'<button class="btn" data-act="train">▶ 跟著圓圓一起做</button>'}` : `<div class="muted">今天不用做肌力，走完路就完成囉！</div>`}
+    <div class="vids"><div class="vh">🎬 今日跟練影片 ${readOnly?'':'<button class="mini" data-act="swapall">🔄 全部換一批</button>'}</div>
     ${todayVideos(day).map(kind=>{ const v = videoFor(kind, day); const done = day.vdone && day.vdone[kind];
       return `<div class="vid ${done?'on':''}">
-        <button class="vthumb" data-act="playv" data-k="${kind}" aria-label="播放 ${esc(v.t)}"><img src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="" loading="lazy"><span>▶</span><em>${v.min} 分</em></button>
+        <button class="vthumb" ${readOnly?'disabled':'data-act="playv"'} data-k="${kind}" aria-label="${readOnly?'':'播放 '}${esc(v.t)}"><img src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="" loading="lazy"><span>▶</span><em>${v.min} 分</em></button>
         <div class="vtx"><small>${VIDEO_KIND[kind]}</small><b>${esc(v.t)}</b><small>${esc(v.ch)}${done?'・已完成 ✓':''}</small>
-        <button class="mini" data-act="swapv" data-k="${kind}">換一支</button></div></div>`; }).join('')}
+        ${readOnly?'':`<button class="mini" data-act="swapv" data-k="${kind}">換一支</button>`}</div></div>`; }).join('')}
     </div>
   </div>`;
 }
@@ -1785,10 +1804,10 @@ function trendMsg(){
 }
 
 /* ========== 畫面：體重 ========== */
-function renderWeight(){
+function renderWeight(readOnly = false){
   const p = S.profile, s = stats();
   const pct = Math.min(100, s.lost / s.goalLoss * 100);
-  const ms = Array.from({length:Math.floor(s.goalLoss)},(_,i)=>i+1);
+  const ms = Array.from({length:Number.isFinite(s.goalLoss)?Math.min(300,Math.floor(s.goalLoss)):0},(_,i)=>i+1);
   let predict = '';
   if(s.rate===null) predict = '量滿一週體重後，我會幫妳預估達標的日子。';
   else if(s.rate <= 0.05) predict = '最近趨勢比較平，很常見！可以多走一點、晚餐蔬菜多一點，平台期通常 1～2 週就會過去。';
@@ -1797,7 +1816,8 @@ function renderWeight(){
     predict = `最近每週約輕 <b>${fmt(s.rate)} kg</b>。照這個速度，大約 <b>${d.getFullYear()} 年 ${d.getMonth()+1} 月 ${d.getDate()} 日</b> 達標 🎯`;
     if(s.rate > 1.2) predict += '<br>⚠️ 速度有點快喔！太快容易掉肌肉、也容易復胖，記得吃夠蛋白質和蔬菜。';
   }
-  const hist = weights().reverse().slice(0,60);
+  const allWeights = weights().reverse();
+  const hist = readOnly ? allWeights : allWeights.slice(0,60);
   return `
   <div class="top"><div class="hello">體重旅程 📉</div></div>
   <div class="card">
@@ -1815,7 +1835,7 @@ function renderWeight(){
   </div>
 
   <div class="card">
-    <h3>變化曲線 <div class="seg"><button data-act="range" data-r="14" class="${chartRange==14?'on':''}">2週</button><button data-act="range" data-r="30" class="${chartRange==30?'on':''}">1月</button><button data-act="range" data-r="0" class="${chartRange==0?'on':''}">全部</button></div></h3>
+    <h3>變化曲線 <div class="seg">${[[14,'2週'],[30,'1月'],[0,'全部']].map(([r,label])=>`<button ${readOnly?`data-manager="range" data-key="${r}"`:`data-act="range" data-r="${r}"`} class="${chartRange===r?'on':''}" aria-pressed="${chartRange===r}">${label}</button>`).join('')}</div></h3>
     ${chart(s.ts)}
     <div class="muted" style="margin-top:6px">● 每天的體重　— 趨勢線（看這條就好）</div>
     <div class="tip">${predict}</div>
@@ -1823,9 +1843,9 @@ function renderWeight(){
   </div>
 
   <div class="card">
-    <h3>紀錄 <small>${weights().length} 筆</small></h3>
-    ${hist.length ? `<ul class="hist">${hist.map(x=>`<li><span>${x.k.replace(/-/g,'/')}</span><b>${fmt(x.w)} kg</b><button class="del" data-act="delw" data-k="${x.k}">刪除</button></li>`).join('')}</ul>` : '<div class="muted">還沒有紀錄，到「今天」量第一次吧！</div>'}
-    <button class="btn ghost" data-act="addpast">＋ 補記之前的體重</button>
+    <h3>紀錄 <small>${allWeights.length} 筆</small></h3>
+    ${hist.length ? `<ul class="hist">${hist.map(x=>`<li><span>${esc(x.k.replace(/-/g,'/'))}</span><b>${fmt(x.w)} kg</b>${readOnly?'':`<button class="del" data-act="delw" data-k="${x.k}">刪除</button>`}</li>`).join('')}</ul>` : `<div class="muted">${readOnly?'目前沒有已同步的體重紀錄。':'還沒有紀錄，到「今天」量第一次吧！'}</div>`}
+    ${readOnly?'':'<button class="btn ghost" data-act="addpast">＋ 補記之前的體重</button>'}
   </div>`;
 }
 function chart(ts){
@@ -1865,7 +1885,7 @@ function renderCollect(){
   </div>
   <div class="card">
     <h3>明信片 <small>${pcs.length} 張</small></h3>
-    ${pcs.length ? pcs.map(c=>`<div class="post"><div class="d">${c.d.replace(/-/g,'/')} · ${esc(S.profile.pet)}寄來</div>${esc(c.t)}</div>`).join('')
+    ${pcs.length ? pcs.map(c=>`<div class="post"><div class="d">${esc(c.d?.replace?.(/-/g,'/')||'')} · ${esc(S.profile.pet)}寄來</div>${esc(c.t)}</div>`).join('')
       : `<div class="muted">每天完成 ${OUTING_AT} 項，${esc(S.profile.pet)}就會出門散步，帶一張明信片回來給妳 💌</div>`}
   </div>`;
 }
@@ -1977,31 +1997,31 @@ document.addEventListener('click', async e=>{
   }
 });
 
-function renderSettings(){
+function renderSettings(readOnly = false){
   const p = S.profile;
   return `
   <div class="top"><div class="hello">設定 ⚙️</div></div>
-  <div id="cloudArea">${cloudCard()}</div>
-  <div id="managementAccess">${renderOwnerManagementAccess()}</div>
+  ${readOnly?'':`<div id="cloudArea">${cloudCard()}</div>
+  <div id="managementAccess">${renderOwnerManagementAccess()}</div>`}
   <div class="card">
     <h3>基本資料</h3>
-    ${profileFields(p)}
-    <button class="btn" data-act="saveprofile">儲存</button>
+    ${readOnly?`<dl>${[['名字',p.name],['陪伴夥伴',p.pet],['身高',p.height? p.height+' 公分':''],['年齡',p.age],['開始體重',p.start+' 公斤'],['目標體重',p.goal+' 公斤']].map(([label,value])=>`<div class="rm"><dt>${label}</dt><dd>${esc(value||'未填寫')}</dd></div>`).join('')}</dl>`:profileFields(p)}
+    ${readOnly?'':'<button class="btn" data-act="saveprofile">儲存</button>'}
   </div>
   <div class="card">
     <h3>💌 打氣留言 <small>會混在明信片裡寄給她</small></h3>
-    <label class="f">一行一句，例如老大想對闆娘說的話
+    ${readOnly?`<p class="manager-note">${esc((p.cheer||[]).join('\n')||'沒有已同步的打氣留言。')}</p>`:`<label class="f">一行一句，例如老大想對闆娘說的話
       <textarea id="cheer" rows="4" placeholder="老婆辛苦了，今天也很美！&#10;瘦不瘦都愛妳，但我陪妳一起走路">${esc((p.cheer||[]).join('\n'))}</textarea>
     </label>
-    <button class="btn mint" data-act="savecheer">儲存留言</button>
+    <button class="btn mint" data-act="savecheer">儲存留言</button>`}
   </div>
   <div class="card">
-    <h3>⏰ 每日提醒 <small>放進 iPhone 行事曆，時間到會跳通知</small></h3>
-    ${reminders().map(r=>`<div class="rm"><input type="checkbox" data-rm="${r.id}" ${r.on?'checked':''}><span>${r.title}</span><input type="time" data-rmt="${r.id}" value="${r.t}"></div>`).join('')}
-    <button class="btn" data-act="ics">📅 加到 iPhone 行事曆</button>
-    <div class="muted" style="margin-top:8px;line-height:1.6">用 Safari 開這個網頁再按，會跳出「加入行事曆」，選「全部加入」就好。之後想改時間，先到行事曆刪掉舊的提醒，再加一次新的。</div>
+    <h3>⏰ 每日提醒 ${readOnly?'':'<small>放進 iPhone 行事曆，時間到會跳通知</small>'}</h3>
+    ${reminders().map(r=>readOnly?`<div class="rm"><span>${esc(r.title)}</span><b>${r.on?esc(r.t):'關閉'}</b></div>`:`<div class="rm"><input type="checkbox" data-rm="${r.id}" ${r.on?'checked':''}><span>${r.title}</span><input type="time" data-rmt="${r.id}" value="${r.t}"></div>`).join('')}
+    ${readOnly?'':`<button class="btn" data-act="ics">📅 加到 iPhone 行事曆</button>
+    <div class="muted" style="margin-top:8px;line-height:1.6">用 Safari 開這個網頁再按，會跳出「加入行事曆」，選「全部加入」就好。之後想改時間，先到行事曆刪掉舊的提醒，再加一次新的。</div>`}
   </div>
-  <div class="card">
+  ${readOnly?'':`<div class="card">
     <h3>💾 資料備份 <small>${window.Cloud&&Cloud.user?'已有雲端同步，這是額外保險':'沒登入時，資料只存在這支手機'}</small></h3>
     <div class="muted" style="margin-bottom:6px"><span id="backupVoiceDisclosure">${ownerVoiceStorageText()}</span> 換手機或清除瀏覽器資料前，記得先備份。</div>
     <button class="btn ghost" data-act="export">下載備份檔</button>
@@ -2011,9 +2031,10 @@ function renderSettings(){
   <div class="card">
     <h3>📱 加到主畫面</h3>
     <div class="muted" style="line-height:1.7">iPhone：用 Safari 打開 → 點下方「分享」⬆️ → 選「加入主畫面」。之後就像 App 一樣，點圖示就能打開。</div>
+    ${managerEntryLink()}
   </div>
   <button class="btn ghost" style="color:#c96b55;margin-bottom:8px" data-act="reset">全部重新開始</button>
-  <div class="muted" style="text-align:center;margin-bottom:20px">版本 ${APP_VERSION}</div>`;
+  <div class="muted" style="text-align:center;margin-bottom:20px">版本 ${APP_VERSION}</div>`}`;
 }
 function profileFields(p={}){
   return `
@@ -2039,6 +2060,51 @@ function readProfile(){
 }
 
 /* ========== 第一次使用 ========== */
+function managerEntryLink(label='管理帳號登入'){
+  return `<a class="manager-entry-link" href="${esc(managementUrl)}">${esc(label)}</a>`;
+}
+
+function shortcutHelp(){
+  return `<details class="shortcut-help"${homeApp?' open':''}>
+    <summary>${homeApp?'主畫面 App 登入遇到問題？':'用 iPhone 建立管理捷徑'}</summary>
+    <p>在 Safari 開啟管理網址並登入。要加到主畫面，選「分享 → 加入主畫面」，關閉「打開為網頁 App」，再按「加入」。新圖示會用預設瀏覽器開啟。</p>
+    ${!homeApp&&!managementEntry?managerEntryLink('開啟管理網址'):''}
+    ${homeApp?'<p>可保留原圖示，原本裝置上的紀錄還在那裡。</p>':''}
+    ${homeApp?`<input type="url" id="managementUrlCopy" readonly aria-label="管理網址" value="${esc(managementUrl)}">
+      <button class="btn ghost" type="button" data-act="copy-manager-url">複製管理網址</button>`:''}
+  </details>`;
+}
+
+function copyManagementUrl(){
+  const selectAddress = ()=>{
+    const field = $('#managementUrlCopy');
+    if(field){ field.focus(); field.select(); }
+    toast('請長按網址選「複製」');
+  };
+  if(navigator.clipboard) navigator.clipboard.writeText(managementUrl).then(()=>toast('已複製管理網址'),selectAddress);
+  else selectAddress();
+}
+
+function authFeedback(){
+  const error = window.Cloud?.error;
+  return error ? `<p class="warn" style="margin-top:12px" role="alert">${esc(error)}</p>` : '';
+}
+
+function onboardLogin(){
+  return googleBtn('用 Google 登入，取回我的紀錄') + authFeedback() + managerEntryLink() + (homeApp?shortcutHelp():'');
+}
+
+function renderManagementEntry(){
+  const user = window.Cloud?.user;
+  return `<div class="top"><div><div class="hello">輕輕日記管理</div><div class="date">${esc(QQ.watchers[0])}</div></div></div>
+    <div class="card">
+      ${user?'<p class="muted">請在登入視窗選擇上方的管理帳號。</p>':''}
+      ${googleBtn(user?'切換到管理用 Google 帳號':'用管理用 Google 帳號登入',true)}
+      ${authFeedback()}
+      ${shortcutHelp()}
+    </div>`;
+}
+
 function renderOnboard(){
   return `
   <div style="text-align:center;padding:20px 0 6px">
@@ -2046,21 +2112,22 @@ function renderOnboard(){
     <h1 style="margin:6px 0 4px;font-size:26px">輕輕日記</h1>
     <div class="muted">每天 30 秒，輕輕打卡，慢慢變輕</div>
   </div>
+  <div class="card" style="text-align:center">
+    <div class="muted" style="margin-bottom:8px">換新手機、或在別的裝置用過了？</div>
+    <div id="gArea">${onboardLogin()}</div>
+  </div>
   <div class="card">
     ${profileFields({})}
     <div class="tip">🌱 健康的速度是<b>每週輕 0.5～1 公斤</b>。減 10 公斤大約需要 3～5 個月，慢慢來最不容易復胖。<br>如果有慢性病、正在吃藥或哺乳，開始前先問問醫生喔。</div>
     <button class="btn" data-act="start">開始旅程 ✨</button>
-  </div>
-  <div class="card" style="text-align:center">
-    <div class="muted" style="margin-bottom:8px">換新手機、或在別的裝置用過了？</div>
-    <div id="gArea">${googleBtn('用 Google 登入，取回我的紀錄')}</div>
   </div>`;
 }
-function googleBtn(label){
-  if(window.Cloud && Cloud.user) return `<div class="muted">已登入 ${esc(Cloud.user.email)}，${Cloud.busy?'正在取回紀錄…':'雲端沒有找到紀錄，先填上面開始吧'}</div>`;
-  return `<button class="gbtn" data-act="login" ${window.Cloud?'':'disabled'}>
+function googleBtn(label, allowSwitch=false){
+  const C = window.Cloud;
+  if(C?.user && !allowSwitch) return `<div class="muted">已登入 ${esc(C.user.email)}，${C.busy?'正在取回紀錄…':'雲端沒有找到紀錄，可在下方開始建立日記'}</div>`;
+  return `<button class="gbtn" data-act="login" ${!C||C.loggingIn?'disabled':''}>
     <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
-    ${window.Cloud ? label : '雲端功能載入中…'}</button>`;
+    ${C?.loggingIn?'正在開啟 Google 登入…':C?label:'雲端功能載入中…'}</button>`;
 }
 function cloudCard(){
   const C = window.Cloud;
@@ -2068,7 +2135,7 @@ function cloudCard(){
   if(!C.user) return `<div class="card"><h3>☁️ 雲端同步 <small>建議開啟</small></h3>
     <div class="muted" style="line-height:1.7;margin-bottom:10px">用妳自己的 Google 帳號登入，日記、提醒與記帳就會存到雲端，換手機也可取回。可以在設定開啟日記管理權限。</div>
     ${googleBtn('用 Google 登入')}
-    ${C.error ? `<div class="warn" style="margin-top:10px">${esc(C.error)}</div>` : ''}</div>`;
+    ${authFeedback()}${homeApp?shortcutHelp():''}</div>`;
   const t = C.lastSync ? `${pad(C.lastSync.getHours())}:${pad(C.lastSync.getMinutes())}` : '';
   return `<div class="card"><h3>☁️ 雲端同步 <small>${C.busy?'同步中…':t?'上次同步 '+t:''}</small></h3>
     <div class="acct">${C.user.photoURL?`<img src="${esc(C.user.photoURL)}" alt="" referrerpolicy="no-referrer">`:'<span>👤</span>'}
@@ -2084,14 +2151,25 @@ let managerOwner = '';
 let managerTab = 'day';
 let managerLimit = 30;
 let managerBusy = false;
+let managerView = 'app';
+let managerPage = 'today';
+let managerChartRange = 30;
+let managerLedgerMonth = '';
 const MANAGER_TABS = {day:'日記', event:'提醒', ledger:'記帳', voice:'分享筆記'};
+const MANAGER_PAGES = {
+  today:['今天',renderToday], weight:['體重',renderWeight], collect:['收藏',renderCollect],
+  plan:['提醒',renderPlan], money:['記帳',renderMoney], settings:['設定',renderSettings]
+};
 
 function setManagerState(state){
   MANAGER = state;
   const dialog = $('#managerEdit');
   if(!state || (!state.loading && dialog && !state.list?.some(owner=>owner.id===dialog.dataset.owner))){
     dialog?.close();
-    if(!state){ managerOwner = ''; managerTab = 'day'; managerLimit = 30; }
+    if(!state){
+      managerOwner = ''; managerTab = 'day'; managerLimit = 30;
+      managerView = 'app'; managerPage = 'today'; managerChartRange = 30; managerLedgerMonth = '';
+    }
   }
   render();
 }
@@ -2152,6 +2230,59 @@ function managerRow(kind, key, row){
     ${kind==='voice'?'':`<button class="btn ghost small" type="button" data-manager="edit" data-key="${esc(key)}" aria-label="管理 ${esc(title)}">管理</button>`}</li>`;
 }
 
+function renderManagerRecordList(owner){
+  const rows = managerList(owner, managerTab);
+  const noRows = managerTab==='voice' ? '目前沒有分享的腰圍或語音補充筆記。' : `目前沒有已同步的${MANAGER_TABS[managerTab]}紀錄。`;
+  return `<section class="card manager-history" aria-label="管理紀錄">
+    <div class="seg manager-tabs" role="group" aria-label="紀錄分類">${Object.entries(MANAGER_TABS).map(([key,label])=>
+      `<button type="button" data-manager="tab" data-key="${key}" class="${key===managerTab?'on':''}" aria-pressed="${key===managerTab}">${label}</button>`).join('')}</div>
+    ${rows.length?`<ul class="manager-rows">${rows.slice(0, managerLimit).map(([key,row])=>managerRow(managerTab, key, row)).join('')}</ul>`:
+      `<p class="muted">${noRows}</p>`}
+    ${rows.length>managerLimit?`<button type="button" class="btn ghost" data-manager="more">顯示更多（${managerLimit} / ${rows.length}）</button>`:''}
+  </section>`;
+}
+
+function managerFullSnapshot(data, date){
+  const days = Object.fromEntries(Object.entries(data.days||{})
+    .filter(([key,day])=>validSpokenDiaryDate(key) && day && typeof day==='object')
+    .map(([key,day])=>[key,{...day,w:Number.isFinite(day.w)?day.w:undefined}]));
+  const day = days[date] || {};
+  // Backups can be older than the app, so normalize fields the owner screens assume are numbers.
+  const counts = field => Object.fromEntries(Object.entries(field||{})
+    .filter(([,value])=>Number.isSafeInteger(value) && value>=0));
+  days[date] = {...day,water:Number.isFinite(day.water)?day.water:0,habits:day.habits||{},
+    swap:counts(day.swap),vswap:counts(day.vswap)};
+  const entries = value => Array.isArray(value) ? value.filter(row=>row && typeof row==='object' && validSpokenDiaryDate(row.date)) : [];
+  const ledger = entries(data.ledger).filter(row=>Number.isFinite(row.amt) && typeof row.cat==='string');
+  const postcards = Array.isArray(data.postcards) ? data.postcards.filter(row=>row && typeof row==='object') : [];
+  const profile = {...data.profile,cheer:Array.isArray(data.profile.cheer)?data.profile.cheer:[]};
+  return {...data,days,profile,events:entries(data.events),ledger,postcards};
+}
+
+function renderManagerFullApp(owner){
+  const date = dkey();
+  const previous = {S, petLine, chartRange, mMonth};
+  // The original renderers read app state. Give them a separate owner snapshot for this render.
+  try{
+    S = managerFullSnapshot(owner.data, date);
+    petLine = null;
+    chartRange = managerChartRange;
+    mMonth = managerLedgerMonth || date.slice(0,7);
+    const [label, renderPage] = MANAGER_PAGES[managerPage];
+    const appPage = renderPage(true, owner.voice?.[date]);
+    const reminders = managerPage==='plan' ? managerList(owner,'event') : [];
+    const archive = reminders.length ? `<details class="card manager-details"><summary>全部提醒（${reminders.length} 筆）</summary>
+      <ul class="manager-rows">${reminders.map(([,event])=>`<li class="manager-row"><div class="manager-record">
+        <strong>${esc(event.title)}</strong><p>${esc(event.date)} ・ ${esc(event.time||'全天')} ・ ${esc(REP[event.rep]||REP.none)}</p>
+      </div></li>`).join('')}</ul></details>` : '';
+    return `<nav class="seg manager-tabs manager-full-nav" aria-label="完整 App 分頁">${Object.entries(MANAGER_PAGES).map(([key,[title]])=>
+      `<button type="button" data-manager="page" data-key="${key}" class="${key===managerPage?'on':''}" aria-pressed="${key===managerPage}">${title}</button>`).join('')}</nav>
+      <section id="managerFull" class="manager-full" aria-label="${label}">${appPage}${archive}</section>`;
+  }finally{
+    ({S, petLine, chartRange, mMonth} = previous);
+  }
+}
+
 function renderManager(){
   const user = window.Cloud.user;
   const users = (MANAGER?.list||[]).filter(u=>u.data?.profile);
@@ -2162,22 +2293,23 @@ function renderManager(){
   else if(!owner) body = '<p class="card">還沒有授權紀錄。闆娘用自己的帳號登入後，可在「設定」開啟管理權限。</p>';
   else{
     managerOwner = owner.id;
-    const rows = managerList(owner, managerTab);
-    const noRows = managerTab==='voice' ? '目前沒有分享的腰圍或語音補充筆記。' : `還沒有${MANAGER_TABS[managerTab]}紀錄。`;
     const choices = users.map(item=>[item.id,item.data.profile.name||'日記帳號']);
-    body = `<div class="card manager-history">
+    const counts = ['day','event','ledger'].map(kind=>managerList(owner,kind).length);
+    const updated = Number.isFinite(owner.updatedAt) && owner.updatedAt>0 ? new Date(owner.updatedAt) : null;
+    const updatedLabel = updated && !Number.isNaN(updated.getTime()) ? updated.toLocaleString('zh-TW',{dateStyle:'short', timeStyle:'short'}) : '';
+    body = `<section class="card" aria-label="已同步紀錄">
       ${users.length>1?`<label class="f">管理的日記<select data-manager="owner">${spokenOptions(choices, owner.id)}</select></label>`:
         `<h3>${esc(owner.data.profile.name||'日記帳號')}</h3>`}
-      <div class="seg manager-tabs" role="group" aria-label="紀錄分類">${Object.entries(MANAGER_TABS).map(([key,label])=>
-        `<button type="button" data-manager="tab" data-key="${key}" class="${key===managerTab?'on':''}" aria-pressed="${key===managerTab}">${label}</button>`).join('')}</div>
-      ${rows.length?`<ul class="manager-rows">${rows.slice(0, managerLimit).map(([key,row])=>managerRow(managerTab, key, row)).join('')}</ul>`:
-        `<p class="muted">${noRows}</p>`}
-      ${rows.length>managerLimit?`<button type="button" class="btn ghost" data-manager="more">顯示更多（${managerLimit} / ${rows.length}）</button>`:''}
-    </div>`;
+      <p class="manager-owner-meta">已同步：日記 ${counts[0]} 天 ・ 提醒 ${counts[1]} 筆 ・ 記帳 ${counts[2]} 筆</p>
+      ${updatedLabel?`<p class="manager-owner-meta">雲端最後更新 ${esc(updatedLabel)}</p>`:''}
+      <div class="seg manager-tabs" role="group" aria-label="檢視方式">${[['app','完整 App'],['records','管理紀錄']].map(([key,label])=>
+        `<button type="button" data-manager="view" data-key="${key}" class="${key===managerView?'on':''}" aria-pressed="${key===managerView}">${label}</button>`).join('')}</div>
+    </section>
+    ${managerView==='app'?renderManagerFullApp(owner):renderManagerRecordList(owner)}`;
   }
   return `<div class="top"><div><div class="hello">日記管理</div><div class="date">${esc(user?.email||'')}</div></div></div>
     ${body}
-    <div class="card"><div class="row2"><button class="btn ghost" type="button" data-manager="reload">重新整理</button><button class="btn ghost" type="button" data-act="logout">登出</button></div></div>
+    <div class="card"><div class="row2"><button class="btn ghost" type="button" data-manager="reload">重新整理</button><button class="btn ghost" type="button" data-act="logout">登出</button></div>${shortcutHelp()}</div>
     <div class="muted" style="text-align:center;margin-bottom:20px">版本 ${APP_VERSION}</div>`;
 }
 
@@ -2276,6 +2408,7 @@ document.addEventListener('change',e=>{
   if(e.target.dataset.manager!=='owner' || !window.Cloud?.watcher) return;
   managerOwner = e.target.value;
   managerLimit = 30;
+  managerLedgerMonth = '';
   render();
 });
 
@@ -2284,6 +2417,31 @@ document.addEventListener('click',e=>{
   if(!button || !window.Cloud?.watcher || managerBusy) return;
   const {manager:action, key} = button.dataset;
   if(action==='reload') { void window.Cloud.loadManager(); return; }
+  if(action==='view' && ['app','records'].includes(key)){
+    managerView = key;
+    render();
+    $(`button[data-manager="view"][data-key="${key}"]`)?.focus({preventScroll:true});
+    return;
+  }
+  if(action==='page' && Object.keys(MANAGER_PAGES).includes(key)){
+    managerPage = key;
+    render();
+    $(`nav button[data-manager="page"][data-key="${key}"]`)?.focus();
+    return;
+  }
+  if(action==='range' && ['14','30','0'].includes(key)){
+    managerChartRange = Number(key);
+    render();
+    $(`button[data-manager="range"][data-key="${key}"]`)?.focus({preventScroll:true});
+    return;
+  }
+  if(action==='month' && ['-1','1'].includes(key)){
+    const [y,m] = (managerLedgerMonth || dkey().slice(0,7)).split('-').map(Number);
+    managerLedgerMonth = dkey(new Date(y,m-1+Number(key),1)).slice(0,7);
+    render();
+    $(`button[data-manager="month"][data-key="${key}"]`)?.focus({preventScroll:true});
+    return;
+  }
   if(action==='tab' && Object.keys(MANAGER_TABS).includes(key)){
     managerTab = key;
     managerLimit = 30;
@@ -2308,7 +2466,7 @@ function loginTip(){
     <div class="lt-t">☁️ 用 Google 登入，紀錄就不怕不見</div>
     <div class="muted" style="margin:4px 0 10px">換手機或清除裝置資料後，可以用原本的 Google 帳號取回已同步的紀錄。</div>
     ${googleBtn('用 Google 登入')}
-    ${C.error ? `<div class="warn" style="margin:10px 0 0">${esc(C.error)}</div>` : ''}
+    ${authFeedback()}${homeApp?shortcutHelp():''}
     <button class="later" data-act="later">之後再說</button></div>`;
 }
 function drawCloudDot(){
@@ -2359,40 +2517,40 @@ function overdue(){
   const t = dkey(), lim = dkey(addDays(new Date(), -14));
   return live(S.events).filter(ev=>ev.rep==='none' && ev.date < t && ev.date >= lim && !(ev.done||{})[ev.date]);
 }
-function planItem(ev, k, late){
+function planItem(ev, k, late, readOnly = false){
   const done = (ev.done||{})[k];
   return `<div class="pit ${done?'done':''}">
-    <div class="tm">${ev.time||'全天'}</div>
+    <div class="tm">${esc(ev.time||'全天')}</div>
     <div class="tt">${esc(ev.title)}${ev.rep!=='none'?`<span class="tag">${REP[ev.rep]}</span>`:''}${late?`<span class="tag late">過期 ${dateLabel(k)}</span>`:''}</div>
-    <button class="mini" data-x="pics" data-id="${ev.id}" title="加到手機行事曆">📅</button>
+    ${readOnly?`<span class="mini ${done?'on':''}">${done?'已完成':'待完成'}</span>`:`<button class="mini" data-x="pics" data-id="${ev.id}" title="加到手機行事曆">📅</button>
     <button class="mini" data-x="pdel" data-id="${ev.id}" title="刪除">🗑</button>
-    <button class="mini ${done?'on':''}" data-x="pdone" data-id="${ev.id}" data-k="${k}" title="完成">✓</button></div>`;
+    <button class="mini ${done?'on':''}" data-x="pdone" data-id="${ev.id}" data-k="${k}" title="完成">✓</button>`}</div>`;
 }
-function renderPlan(){
+function renderPlan(readOnly = false){
   const t = dkey(), tm = dkey(addDays(new Date(),1));
   const nextH = pad(Math.min(23, new Date().getHours()+1)) + ':00';
-  const todayList = overdue().map(ev=>planItem(ev, ev.date, true)).join('') + itemsOn(t).map(ev=>planItem(ev, t)).join('');
-  const tmList = itemsOn(tm).map(ev=>planItem(ev, tm)).join('');
+  const todayList = overdue().map(ev=>planItem(ev, ev.date, true, readOnly)).join('') + itemsOn(t).map(ev=>planItem(ev, t, false, readOnly)).join('');
+  const tmList = itemsOn(tm).map(ev=>planItem(ev, tm, false, readOnly)).join('');
   let later = '';
   for(let i=2;i<=30;i++){
     const k = dkey(addDays(new Date(), i));
     const its = itemsOn(k).filter(ev=>ev.rep==='none' || ev.rep==='monthly' || (ev.rep==='weekly' && i<=7));
-    if(its.length) later += `<div class="lday">${dateLabel(k)}（${'日一二三四五六'[parseKey(k).getDay()]}）</div>` + its.map(ev=>planItem(ev,k)).join('');
+    if(its.length) later += `<div class="lday">${dateLabel(k)}（${'日一二三四五六'[parseKey(k).getDay()]}）</div>` + its.map(ev=>planItem(ev,k,false,readOnly)).join('');
   }
   const daily = live(S.events).filter(ev=>ev.rep==='daily');
-  return `<div class="top"><div><div class="hello">📅 提醒</div><div class="date">記下要做的事，做完點 ✓</div></div></div>
-  ${renderSpokenComposer()}
+  return `<div class="top"><div><div class="hello">📅 提醒</div>${readOnly?'':'<div class="date">記下要做的事，做完點 ✓</div>'}</div></div>
+  ${readOnly?'':`${renderSpokenComposer()}
   <div class="card pform">
     <label class="f">要做什麼<input id="pTitle" maxlength="60" placeholder="例如：回診、繳電費、接小孩"></label>
     <div class="r"><label class="f">日期<input id="pDate" type="date" value="${t}"></label>
     <label class="f">時間<input id="pTime" type="time" value="${nextH}"></label></div>
     <label class="f">重複<select id="pRep">${Object.entries(REP).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></label>
     <button class="btn" data-x="padd">＋ 新增提醒</button>
-  </div>
+  </div>`}
   <div class="card"><div class="pgrp">今天</div>${todayList || '<div class="muted">今天沒有提醒，好好休息 ☕</div>'}</div>
   <div class="card"><div class="pgrp">明天</div>${tmList || '<div class="muted">明天還沒有提醒</div>'}</div>
   ${later ? `<div class="card"><div class="pgrp">之後 30 天</div>${later}${daily.length?`<div class="muted" style="margin-top:8px">每天重複的 ${daily.length} 件不列在這裡</div>`:''}</div>` : ''}
-  <div class="muted" style="text-align:center;margin:-2px 8px 20px;line-height:1.6">想讓手機準時響？按每筆旁邊的 📅，加到手機行事曆就會跳通知</div>`;
+  ${readOnly?'':'<div class="muted" style="text-align:center;margin:-2px 8px 20px;line-height:1.6">想讓手機準時響？按每筆旁邊的 📅，加到手機行事曆就會跳通知</div>'}`;
 }
 function eventICS(ev){
   const [y,mo,d] = ev.date.split('-'), [h,mi] = (ev.time||'09:00').split(':');
@@ -2407,9 +2565,9 @@ function eventICS(ev){
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
   toast('打開檔案、按「加入」就會準時提醒 📅');
 }
-function todayPlanBar(){
+function todayPlanBar(readOnly = false){
   const n = itemsOn(dkey()).filter(ev=>!(ev.done||{})[dkey()]).length + overdue().length;
-  return n ? `<button class="todaybar" data-sec="plan" style="width:100%;text-align:left">📅 <span style="flex:1">今天還有 <b>${n}</b> 件提醒要做</span><span class="muted">看看 ›</span></button>` : '';
+  return n ? `<button class="todaybar" ${readOnly?'data-manager="page" data-key="plan"':'data-sec="plan"'} style="width:100%;text-align:left">📅 <span style="flex:1">今天還有 <b>${n}</b> 件提醒要做</span><span class="muted">看看 ›</span></button>` : '';
 }
 
 /* ---------- 💰 記帳 ---------- */
@@ -2421,36 +2579,37 @@ const catEmoji = (t,c)=> ((CATS[t]||[]).find(x=>x[0]===c)||['','📦'])[1];
 let mType = 'out', mCat = '餐飲', mMonth = dkey().slice(0,7);
 const money = n => 'NT$ ' + Math.round(n).toLocaleString();
 function catChips(t, sel){ return CATS[t].map(([c,e])=>`<button data-x="mcat" data-c="${c}" class="${c===sel?'on':''}">${e} ${c}</button>`).join(''); }
-function renderMoney(){
+function renderMoney(readOnly = false){
   const list = live(S.ledger).filter(x=>x.date.slice(0,7)===mMonth).sort((a,b)=> a.date===b.date ? (b.u||0)-(a.u||0) : a.date < b.date ? 1 : -1);
   const inSum = list.filter(x=>x.type==='in').reduce((a,x)=>a+x.amt,0);
   const outSum = list.filter(x=>x.type==='out').reduce((a,x)=>a+x.amt,0);
-  const byCat = {}; list.filter(x=>x.type==='out').forEach(x=>byCat[x.cat]=(byCat[x.cat]||0)+x.amt);
+  const byCat = Object.create(null); list.filter(x=>x.type==='out').forEach(x=>byCat[x.cat]=(byCat[x.cat]||0)+x.amt);
   const cats = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
   const max = cats.length ? cats[0][1] : 1;
   const [y,m] = mMonth.split('-').map(Number);
+  const amount = readOnly ? n=>n.toLocaleString('zh-TW',{maximumFractionDigits:2}) : n=>Math.round(n).toLocaleString();
   let rows = '', lastD = '';
   list.forEach(x=>{
     if(x.date!==lastD){ lastD = x.date; rows += `<div class="lday">${dateLabel(x.date)}（${'日一二三四五六'[parseKey(x.date).getDay()]}）</div>`; }
-    rows += `<button class="lit" data-x="medit" data-id="${x.id}"><span class="le">${catEmoji(x.type,x.cat)}</span>
+    rows += `<${readOnly?'div':'button'} class="lit" ${readOnly?'':`data-x="medit" data-id="${x.id}"`}><span class="le">${catEmoji(x.type,x.cat)}</span>
       <span class="lt">${esc(x.cat)}${x.note?`<small>${esc(x.note)}</small>`:''}</span>
-      <span class="lv ${x.type==='in'?'in-c':'out-c'}">${x.type==='in'?'+':'−'}${Math.round(x.amt).toLocaleString()}</span></button>`;
+      <span class="lv ${x.type==='in'?'in-c':'out-c'}">${x.type==='in'?'+':'−'}${amount(x.amt)}</span></${readOnly?'div':'button'}>`;
   });
-  return `<div class="top"><div><div class="hello">💰 記帳</div><div class="date">金額 → 分類 → 存，三步完成</div></div></div>
-  ${renderSpokenComposer()}
+  return `<div class="top"><div><div class="hello">💰 記帳</div>${readOnly?'':'<div class="date">金額 → 分類 → 存，三步完成</div>'}</div></div>
+  ${readOnly?'':`${renderSpokenComposer()}
   <div class="card">
     <div class="ttog"><button data-x="mtype" data-t="out" class="out ${mType==='out'?'on':''}">支出</button><button data-x="mtype" data-t="in" class="in ${mType==='in'?'on':''}">收入</button></div>
     <div class="amt"><span>NT$</span><input id="mAmt" type="number" inputmode="decimal" min="0" placeholder="0"></div>
     <div class="cats" id="mCats">${catChips(mType, mCat)}</div>
     <div class="mrow2"><input id="mNote" maxlength="40" placeholder="備註（可不填）"><input id="mDate" type="date" value="${dkey()}"></div>
     <button class="btn" data-x="madd">記一筆</button>
-  </div>
+  </div>`}
   <div class="card">
-    <div class="mnav"><button class="mini" data-x="mprev">‹</button><b>${y} 年 ${m} 月</b><button class="mini" data-x="mnext">›</button></div>
-    <div class="msum"><div><small>收入</small><b class="in-c">${Math.round(inSum).toLocaleString()}</b></div><div><small>支出</small><b class="out-c">${Math.round(outSum).toLocaleString()}</b></div><div><small>結餘</small><b>${Math.round(inSum-outSum).toLocaleString()}</b></div></div>
+    <div class="mnav"><button class="mini" ${readOnly?'data-manager="month" data-key="-1" aria-label="上個月"':'data-x="mprev"'}>‹</button><b>${y} 年 ${m} 月</b><button class="mini" ${readOnly?'data-manager="month" data-key="1" aria-label="下個月"':'data-x="mnext"'}>›</button></div>
+    <div class="msum"><div><small>收入</small><b class="in-c">${amount(inSum)}</b></div><div><small>支出</small><b class="out-c">${amount(outSum)}</b></div><div><small>結餘</small><b>${amount(inSum-outSum)}</b></div></div>
   </div>
-  ${cats.length ? `<div class="card"><h3>錢花在哪 <small>這個月的支出</small></h3>${cats.map(([c,v])=>`<div class="cbar"><span class="cn">${catEmoji('out',c)} ${esc(c)}</span><span class="cb"><i style="width:${Math.max(3,v/max*100)}%"></i></span><span class="cv">${Math.round(v).toLocaleString()}・${Math.round(v/outSum*100)}%</span></div>`).join('')}</div>` : ''}
-  <div class="card"><h3>明細 <small>點一筆可以修改</small></h3>${rows || '<div class="muted">這個月還沒有紀錄</div>'}</div>`;
+  ${cats.length ? `<div class="card"><h3>錢花在哪 <small>這個月的支出</small></h3>${cats.map(([c,v])=>`<div class="cbar"><span class="cn">${catEmoji('out',c)} ${esc(c)}</span><span class="cb"><i style="width:${Math.max(3,v/max*100)}%"></i></span><span class="cv">${amount(v)}・${Math.round(v/outSum*100)}%</span></div>`).join('')}</div>` : ''}
+  <div class="card"><h3>明細 ${readOnly?'':'<small>點一筆可以修改</small>'}</h3>${rows || '<div class="muted">這個月還沒有紀錄</div>'}</div>`;
 }
 function editEntry(x){
   closeModal();
@@ -2467,6 +2626,7 @@ function editEntry(x){
 }
 
 document.addEventListener('click', e=>{
+  if(window.Cloud?.watcher) return;
   const sb = e.target.closest('[data-sec]');
   if(sb){
     if(section!==sb.dataset.sec && spokenMic){ endSpokenMic(); spokenDraft().status = ''; }
@@ -2521,6 +2681,7 @@ document.addEventListener('click', e=>{
 function render(){
   const app = $('#app');
   if(window.Cloud && Cloud.watcher){ clearSpokenDrafts(); $('#tabs').classList.add('hide'); app.innerHTML = renderManager(); return; }
+  if(managementEntry){ $('#tabs').classList.add('hide'); app.innerHTML = renderManagementEntry(); return; }
   if(section==='diary' && tab!=='today' && spokenMic){
     endSpokenMic(); spokenDraft().status = '';
   }
@@ -2565,10 +2726,15 @@ function afterProgress(saved = false){
   render();
 }
 document.addEventListener('click', e=>{
+  if(window.Cloud?.watcher){
+    if(e.target.closest('#app [data-act="logout"]')) void window.Cloud.logout();
+    if(e.target.closest('#app [data-act="copy-manager-url"]')) copyManagementUrl();
+    return;
+  }
   const tb = e.target.closest('[data-tab]');
   if(tb){ tab = tb.dataset.tab; petLine=null; render(); window.scrollTo(0,0); return; }
   const el = e.target.closest('[data-act]'); if(!el) return;
-  const act = el.dataset.act, day = S.profile ? today() : null;
+  const act = el.dataset.act, day = S.profile && !managementEntry && !window.Cloud?.watcher ? today() : null;
   switch(act){
     case 'voice-mic': toggleSpokenMic(); break;
     case 'voice-review': reviewSpokenComposer(); break;
@@ -2650,6 +2816,7 @@ document.addEventListener('click', e=>{
     case 'ics': makeICS(); break;
     case 'share': shareToday(); break;
     case 'login': { if(window.Cloud) Cloud.login(); break; }
+    case 'copy-manager-url': copyManagementUrl(); break;
     case 'logout': { if(Cloud.watcher){ Cloud.logout(); break; } if(confirm('登出後，這支手機上的紀錄還會留著，只是不再同步到雲端。確定登出？')){ clearSpokenDrafts(); Cloud.logout(); } break; }
     case 'later': { S.loginTipUntil = Date.now() + 3*864e5; save(); $('#loginTip').innerHTML=''; toast('好～3 天後再提醒妳，也可以到「設定」登入'); break; }
     case 'syncnow': { Cloud.sync(); break; }
@@ -2657,6 +2824,7 @@ document.addEventListener('click', e=>{
   }
 });
 document.addEventListener('change', e=>{
+  if(window.Cloud?.watcher) return;
   const id = e.target.dataset.rm || e.target.dataset.rmt; if(!id) return;
   S.reminders = S.reminders || {};
   const cur = reminders().find(r=>r.id===id);
@@ -2800,14 +2968,16 @@ function confetti(set){
 }
 
 // 自動更新：打開或回到 App 時，偷偷問伺服器有沒有新版，有就換上
-const APP_VERSION = '20261127-2';
+const APP_VERSION = '20261127-3';
 async function checkUpdate(){
   try{
     const r = await fetch(location.pathname + '?check=' + Date.now(), {cache:'no-store'});
     const m = (await r.text()).match(/APP_VERSION = '([^']+)'/);
     if(m && m[1] !== APP_VERSION && sessionStorage.getItem('qq-upd') !== m[1]){
       sessionStorage.setItem('qq-upd', m[1]);   // 避免一直重新整理
-      location.replace(location.pathname + '?v=' + m[1]);
+      const next = new URL(location.href);
+      next.searchParams.set('v',m[1]);
+      location.replace(next);
     }
   }catch(_){}
 }
@@ -2830,7 +3000,7 @@ render();
 <script type="module">
 /* ========== 雲端：Google 登入＋同步（Firebase）========== */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut }
+import { getAuth, GoogleAuthProvider, signInWithPopup, getRedirectResult, onAuthStateChanged, signOut }
   from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
 import { getFirestore, doc, getDocFromServer, getDocsFromServer, collection, query, where, runTransaction } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 
@@ -2875,6 +3045,33 @@ let managerRows = [];
 
 function voicePayload(records, device){
   return {data:JSON.stringify(records), updatedAt:Date.now(), device};
+}
+
+async function readManagerData(){
+  const grants = await getDocsFromServer(query(collection(db, ACCESS_COLLECTION), where('manage','==',true)));
+  return Promise.allSettled(grants.docs.map(async grant=>{
+    const id = grant.id;
+    const [diary, records, voice] = await Promise.all([
+      getDocFromServer(rootRef(id)),
+      getDocFromServer(privateRef(id)),
+      grant.data().shareSpoken ? getDocFromServer(privateRef(id,'voiceShare')).catch(error=>{
+        if(error.code!=='permission-denied') throw error;
+        return null;
+      }) : null,
+    ]);
+    const data = mergeOwnerSnapshot(diary, records);
+    const updatedAt = Math.max(envelopeStamp(diary), envelopeStamp(records));
+    return data.profile ? {id, updatedAt, data, voice:voice ? readData(voice) : null} : null;
+  }));
+}
+
+async function loadManagerWithDeadline(){
+  let timer;
+  const timeout = new Promise((_,reject)=>{
+    timer = setTimeout(()=>reject({code:'manager-timeout'}),18000);
+  });
+  try{ return await Promise.race([readManagerData(),timeout]); }
+  finally{ clearTimeout(timer); }
 }
 
 function mergeOwnerSnapshot(publicDoc, privateDoc){
@@ -2940,34 +3137,27 @@ function editManagedData(data, kind, key, changes, stamp, expected){
 }
 
 const Cloud = {
-  user:null, watcher:false, busy:false, lastSync:null, error:'', access:null, accessError:'',
+  user:null, watcher:false, busy:false, loggingIn:false, lastSync:null, error:'', access:null, accessError:'',
   async loadManager(){
     if(!Cloud.watcher) return;
     const call = ++managerLoad, generation = session;
     const current = ()=>session===generation && managerLoad===call && Cloud.watcher;
     QQ.setManager({loading:true});
     try{
-      const grants = await getDocsFromServer(query(collection(db, ACCESS_COLLECTION), where('manage','==',true)));
-      const result = await Promise.allSettled(grants.docs.map(async grant=>{
-        const id = grant.id;
-        const [diary, records, voice] = await Promise.all([
-          getDocFromServer(rootRef(id)),
-          getDocFromServer(privateRef(id)),
-          grant.data().shareSpoken ? getDocFromServer(privateRef(id,'voiceShare')).catch(error=>{
-            if(error.code!=='permission-denied') throw error;
-            return null;
-          }) : null,
-        ]);
-        const data = mergeOwnerSnapshot(diary, records);
-        return data.profile ? {id, updatedAt:envelopeStamp(diary), data, voice:voice ? readData(voice) : null} : null;
-      }));
+      const result = await loadManagerWithDeadline();
       if(!current()) return;
       managerRows = result.flatMap(item=>item.status==='fulfilled' && item.value ? [item.value] : []);
       managerRows.sort((a,b)=>b.updatedAt-a.updatedAt);
-      const failure = result.find(item=>item.status==='rejected' && item.reason.code!=='permission-denied');
-      QQ.setManager({list:managerRows, error:!managerRows.length && failure ? errText(failure.reason) : ''});
+      const failure = result.find(item=>item.status==='rejected');
+      const error = !managerRows.length && result.length
+        ? failure ? errText(failure.reason) : '已取得管理授權。闆娘的裝置還沒有同步可顯示的日記。'
+        : '';
+      QQ.setManager({list:managerRows, error});
     }catch(error){
-      if(current()){ managerRows=[]; QQ.setManager({error:errText(error)}); }
+      if(current()){
+        managerRows=[];
+        QQ.setManager({error:error.code==='manager-timeout' ? '雲端讀取時間較久，請確認網路後按「重新整理」。' : errText(error)});
+      }
     }
   },
   async manage(owner, kind, key, changes, original){
@@ -3027,14 +3217,16 @@ const Cloud = {
     }catch(error){ if(generation===session){ Cloud.error=errText(error); QQ.refresh(); } }
   },
   async login(){
-    Cloud.error='';
+    if(Cloud.loggingIn) return;
+    Cloud.error=''; Cloud.loggingIn=true; QQ.refresh();
     try{ await signInWithPopup(auth,provider); }
     catch(error){
-      if(['auth/popup-closed-by-user','auth/cancelled-popup-request'].includes(error.code)) return;
-      if(['auth/popup-blocked','auth/operation-not-supported-in-this-environment'].includes(error.code)){
-        return signInWithRedirect(auth,provider);
-      }
-      Cloud.error=errText(error); QQ.refresh();
+      if(['auth/popup-closed-by-user','auth/cancelled-popup-request','auth/popup-blocked','auth/operation-not-supported-in-this-environment'].includes(error.code)){
+        Cloud.error = homeApp ? 'Google 登入沒有完成。要使用管理帳號，請複製管理網址到 Safari 開啟。'
+          : 'Google 登入視窗沒有完成。請再試一次，並在視窗中選擇 Google 帳號。';
+      }else Cloud.error=errText(error);
+    }finally{
+      Cloud.loggingIn=false; QQ.refresh();
     }
   },
   async wipe(){
@@ -3065,7 +3257,7 @@ const Cloud = {
   async logout(){ await signOut(auth); },
   async sync(){
     const user=Cloud.user;
-    if(!user) return;
+    if(!user || (managementEntry && !Cloud.watcher)) return;
     if(Cloud.watcher) return Cloud.loadManager();
     if(Cloud.busy){ syncAgain=true; return; }
     const generation=session;
